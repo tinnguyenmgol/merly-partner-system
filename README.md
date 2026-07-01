@@ -49,7 +49,11 @@ npm run build # runs sync-logo before next build
 ```
 
 ## Current phase scope
-Implemented: route shells, responsive UI, Merly logo usage, Prisma schema, seed data, docs, partner intake/review, manual Haravan order sync with referral_ctv discount-code attribution, commission ledger recalculation, 7-day reconciliation wait, and payout-ready balance previews.
+Implemented: route shells, responsive UI, Merly logo usage, Prisma schema, seed data, docs, partner intake/review, manual Haravan order sync with split affiliate-link/shop-discount attribution, affiliate click tracking, commission ledger recalculation, 7-day reconciliation wait, and payout-ready balance previews.
 
 ## Not implemented yet
-No Mini Corner, wholesale/dealer workflows, webhooks, commission engine, payout engine, payment automation, production auth, or complex analytics are implemented in Phase 1.
+No Mini Corner, wholesale/dealer workflows, webhooks, new commission engine, payout engine, payment automation, production auth, or complex analytics are implemented in Phase 1.
+
+
+## Attribution model
+Individual `referral_ctv` partners use affiliate links (`https://merlyshoes.com/?ref=MERLYCTV001`), admin/manual attribution, or future order requests; customers do not need discount codes. `shop_referral` partners use discount codes where customer discount and shop commission can be tied to the code. Future commission work must calculate by partner type/program instead of assuming one attribution method. See `docs/MERLY_WEBSITE_AFFILIATE_TRACKING.md` for the paste-ready website script.

@@ -1,10 +1,16 @@
-import { recalculateOrderCommission } from "@/features/commissions";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { calculateEligibleProductRevenue } from "@/lib/money";
 import { HaravanClient } from "./haravan-client";
-import type { HaravanLineItem, HaravanMoney, HaravanOrder, HaravanSyncResult } from "./types";
-
-const REFERRAL_PARTNER_TYPE = "referral_ctv" as const;
+import {
+  extractHaravanAttributionCandidates,
+  resolveHaravanAttribution,
+} from "./attribution";
+import type {
+  HaravanLineItem,
+  HaravanMoney,
+  HaravanOrder,
+  HaravanSyncResult,
+} from "./types";
 
 type SyncSummary = Omit<HaravanSyncResult, "ok" | "message" | "logId">;
 
@@ -23,34 +29,43 @@ function parseDate(value?: string | null) {
 function customerName(order: HaravanOrder) {
   const customer = order.customer;
   if (!customer) return undefined;
-  return customer.name ?? ([customer.first_name, customer.last_name].filter(Boolean).join(" ") || undefined);
+  return (
+    customer.name ??
+    ([customer.first_name, customer.last_name].filter(Boolean).join(" ") ||
+      undefined)
+  );
 }
 
 function orderCode(order: HaravanOrder) {
-  return String(order.order_code ?? order.name ?? order.order_number ?? order.id);
-}
-
-function normalizeCode(code?: string | null) {
-  return code?.trim().toUpperCase() || undefined;
-}
-
-function firstDiscountCode(order: HaravanOrder) {
-  return order.discount_codes?.map((discount) => normalizeCode(discount.code)).find(Boolean);
+  return String(
+    order.order_code ?? order.name ?? order.order_number ?? order.id,
+  );
 }
 
 function lineDiscountAmount(item: HaravanLineItem) {
-  const allocationDiscount = item.discount_allocations?.reduce((sum, allocation) => sum + toVnd(allocation.amount), 0) ?? 0;
+  const allocationDiscount =
+    item.discount_allocations?.reduce(
+      (sum, allocation) => sum + toVnd(allocation.amount),
+      0,
+    ) ?? 0;
   return allocationDiscount || toVnd(item.total_discount);
 }
 
 function mapLineItem(item: HaravanLineItem) {
   const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
-  const unitPrice = toVnd(item.price || (item.line_price ? toVnd(item.line_price) / quantity : 0));
+  const unitPrice = toVnd(
+    item.price || (item.line_price ? toVnd(item.line_price) / quantity : 0),
+  );
   const discountAmount = lineDiscountAmount(item);
 
   return {
     sku: item.sku || undefined,
-    productName: item.title ?? item.product_title ?? item.name ?? item.sku ?? "Haravan product",
+    productName:
+      item.title ??
+      item.product_title ??
+      item.name ??
+      item.sku ??
+      "Haravan product",
     quantity,
     unitPrice,
     discountAmount,
@@ -59,9 +74,13 @@ function mapLineItem(item: HaravanLineItem) {
 }
 
 function shippingFee(order: HaravanOrder) {
-  const shippingSetAmount = toVnd(order.total_shipping_price_set?.shop_money?.amount);
+  const shippingSetAmount = toVnd(
+    order.total_shipping_price_set?.shop_money?.amount,
+  );
   if (shippingSetAmount > 0) return shippingSetAmount;
-  return order.shipping_lines?.reduce((sum, line) => sum + toVnd(line.price), 0) ?? 0;
+  return (
+    order.shipping_lines?.reduce((sum, line) => sum + toVnd(line.price), 0) ?? 0
+  );
 }
 
 function mapStatus(order: HaravanOrder) {
@@ -72,103 +91,162 @@ function mapStatus(order: HaravanOrder) {
 }
 
 async function importOrder(order: HaravanOrder) {
-  const discountCode = firstDiscountCode(order);
-  const partnerCode = discountCode
-    ? await db.partnerCode.findFirst({
-        include: { partner: { include: { partnerType: true } } },
-        where: {
-          active: true,
-          code: discountCode,
-          partner: { status: "approved", partnerType: { code: REFERRAL_PARTNER_TYPE, enabled: true } },
-        },
-      })
-    : null;
-
   const items = (order.line_items ?? []).map(mapLineItem);
   const eligibleProductRevenue = calculateEligibleProductRevenue(items);
   const externalOrderId = String(order.id);
   const code = orderCode(order);
 
-  const partnerOrderId = await db.$transaction(async (tx) => {
-    const existing = await tx.partnerOrder.findUnique({ where: { externalOrderId } });
+  const result = await db.$transaction(async (tx) => {
+    const existing = await tx.partnerOrder.findUnique({
+      include: { attributions: true },
+      where: { externalOrderId },
+    });
+    const hasManualAttribution = existing?.attributions.some(
+      (attribution) => attribution.source === "manual",
+    );
+    const attribution = hasManualAttribution
+      ? {
+          partnerCode: null,
+          source: "manual" as const,
+          value: undefined,
+          note: "Existing manual attribution was preserved.",
+        }
+      : await resolveHaravanAttribution(tx, order);
+    const partnerId = hasManualAttribution
+      ? existing?.partnerId
+      : attribution.partnerCode?.partnerId;
+
     const partnerOrder = await tx.partnerOrder.upsert({
       where: { externalOrderId },
       update: {
-        partnerId: partnerCode?.partnerId,
+        ...(partnerId !== undefined ? { partnerId } : {}),
         orderCode: code,
         customerName: customerName(order),
         status: mapStatus(order),
         eligibleProductRevenue,
-        discountAmount: toVnd(order.total_discounts) || items.reduce((sum, item) => sum + item.discountAmount, 0),
+        discountAmount:
+          toVnd(order.total_discounts) ||
+          items.reduce((sum, item) => sum + item.discountAmount, 0),
         shippingFee: shippingFee(order),
-        paidAt: order.financial_status === "paid" ? parseDate(order.processed_at ?? order.updated_at ?? order.created_at) : undefined,
-        deliveredAt: order.fulfillment_status === "fulfilled" ? parseDate(order.closed_at ?? order.updated_at) : undefined,
+        paidAt:
+          order.financial_status === "paid"
+            ? parseDate(
+                order.processed_at ?? order.updated_at ?? order.created_at,
+              )
+            : undefined,
+        deliveredAt:
+          order.fulfillment_status === "fulfilled"
+            ? parseDate(order.closed_at ?? order.updated_at)
+            : undefined,
         cancelledAt: parseDate(order.cancelled_at),
       },
       create: {
-        partnerId: partnerCode?.partnerId,
+        partnerId,
         externalOrderId,
         orderCode: code,
         customerName: customerName(order),
         status: mapStatus(order),
         eligibleProductRevenue,
-        discountAmount: toVnd(order.total_discounts) || items.reduce((sum, item) => sum + item.discountAmount, 0),
+        discountAmount:
+          toVnd(order.total_discounts) ||
+          items.reduce((sum, item) => sum + item.discountAmount, 0),
         shippingFee: shippingFee(order),
-        paidAt: order.financial_status === "paid" ? parseDate(order.processed_at ?? order.updated_at ?? order.created_at) : undefined,
-        deliveredAt: order.fulfillment_status === "fulfilled" ? parseDate(order.closed_at ?? order.updated_at) : undefined,
+        paidAt:
+          order.financial_status === "paid"
+            ? parseDate(
+                order.processed_at ?? order.updated_at ?? order.created_at,
+              )
+            : undefined,
+        deliveredAt:
+          order.fulfillment_status === "fulfilled"
+            ? parseDate(order.closed_at ?? order.updated_at)
+            : undefined,
         cancelledAt: parseDate(order.cancelled_at),
       },
     });
 
-    await tx.partnerOrderItem.deleteMany({ where: { orderId: partnerOrder.id } });
+    await tx.partnerOrderItem.deleteMany({
+      where: { orderId: partnerOrder.id },
+    });
     if (items.length > 0) {
-      await tx.partnerOrderItem.createMany({ data: items.map((item) => ({ ...item, orderId: partnerOrder.id })) });
+      await tx.partnerOrderItem.createMany({
+        data: items.map((item) => ({ ...item, orderId: partnerOrder.id })),
+      });
     }
 
-    await tx.partnerOrderAttribution.deleteMany({ where: { orderId: partnerOrder.id, source: "discount_code" } });
-    if (discountCode) {
+    if (!hasManualAttribution) {
+      await tx.partnerOrderAttribution.deleteMany({
+        where: {
+          orderId: partnerOrder.id,
+          source: { in: ["affiliate_link", "shop_discount_code", "none"] },
+        },
+      });
       await tx.partnerOrderAttribution.create({
         data: {
           orderId: partnerOrder.id,
-          partnerCodeId: partnerCode?.id,
-          source: "discount_code",
-          value: discountCode,
-          note: partnerCode ? "Matched active approved referral_ctv partner code during Haravan sync." : "No active approved referral_ctv partner code matched during Haravan sync.",
+          partnerCodeId: attribution.partnerCode?.id,
+          source: attribution.source,
+          value: attribution.value,
+          note: attribution.note,
         },
       });
     }
 
-    if (partnerCode && existing?.partnerId !== partnerCode.partnerId) {
+    if (
+      !hasManualAttribution &&
+      attribution.partnerCode &&
+      existing?.partnerId !== attribution.partnerCode.partnerId
+    ) {
       await tx.adminAuditLog.create({
         data: {
-          partnerId: partnerCode.partnerId,
-          action: "order.attribution.haravan_discount_code",
+          partnerId: attribution.partnerCode.partnerId,
+          action: `order.attribution.${attribution.source}`,
           entityType: "PartnerOrder",
           entityId: partnerOrder.id,
           beforeJson: { partnerId: existing?.partnerId ?? null },
-          afterJson: { partnerId: partnerCode.partnerId, discountCode },
-          note: "Haravan order sync attributed order by discount code.",
+          afterJson: {
+            partnerId: attribution.partnerCode.partnerId,
+            code: attribution.value,
+            source: attribution.source,
+          },
+          note: "Haravan order sync attributed order by configured attribution priority.",
         },
       });
     }
 
-    return partnerOrder.id;
+    const candidates = extractHaravanAttributionCandidates(order);
+    const hadCandidate = candidates.explicit.length > 0 || candidates.landing.length > 0 || candidates.discounts.length > 0;
+
+    return {
+      attributed: Boolean(attribution.partnerCode),
+      skipped: !attribution.partnerCode && hadCandidate,
+    };
   });
 
-  if (partnerCode) {
-    await recalculateOrderCommission(partnerOrderId);
-  }
-
-  return { attributed: Boolean(partnerCode), skipped: Boolean(discountCode && !partnerCode) };
+  return result;
 }
 
-export async function syncHaravanOrders(client = new HaravanClient()): Promise<HaravanSyncResult> {
+export async function syncHaravanOrders(
+  client = new HaravanClient(),
+): Promise<HaravanSyncResult> {
   if (!hasDatabaseUrl()) {
-    return { ok: false, message: "DATABASE_URL is required for Haravan order sync.", syncedOrders: 0, attributedOrders: 0, skippedOrders: 0 };
+    return {
+      ok: false,
+      message: "DATABASE_URL is required for Haravan order sync.",
+      syncedOrders: 0,
+      attributedOrders: 0,
+      skippedOrders: 0,
+    };
   }
 
-  const log = await db.haravanSyncLog.create({ data: { syncType: "orders", status: "running" } });
-  const summary: SyncSummary = { syncedOrders: 0, attributedOrders: 0, skippedOrders: 0 };
+  const log = await db.haravanSyncLog.create({
+    data: { syncType: "orders", status: "running" },
+  });
+  const summary: SyncSummary = {
+    syncedOrders: 0,
+    attributedOrders: 0,
+    skippedOrders: 0,
+  };
 
   try {
     const orders = await client.listOrders();
@@ -181,13 +259,32 @@ export async function syncHaravanOrders(client = new HaravanClient()): Promise<H
 
     await db.haravanSyncLog.update({
       where: { id: log.id },
-      data: { status: "success", finishedAt: new Date(), message: `Imported ${summary.syncedOrders} Haravan orders.`, metadata: summary },
+      data: {
+        status: "success",
+        finishedAt: new Date(),
+        message: `Imported ${summary.syncedOrders} Haravan orders.`,
+        metadata: summary,
+      },
     });
 
-    return { ok: true, message: `Imported ${summary.syncedOrders} Haravan orders.`, ...summary, logId: log.id };
+    return {
+      ok: true,
+      message: `Imported ${summary.syncedOrders} Haravan orders.`,
+      ...summary,
+      logId: log.id,
+    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown Haravan sync error";
-    await db.haravanSyncLog.update({ where: { id: log.id }, data: { status: "failed", finishedAt: new Date(), message, metadata: summary } });
+    const message =
+      error instanceof Error ? error.message : "Unknown Haravan sync error";
+    await db.haravanSyncLog.update({
+      where: { id: log.id },
+      data: {
+        status: "failed",
+        finishedAt: new Date(),
+        message,
+        metadata: summary,
+      },
+    });
     return { ok: false, message, ...summary, logId: log.id };
   }
 }
