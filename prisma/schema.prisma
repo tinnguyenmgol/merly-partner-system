@@ -41,11 +41,13 @@ enum PayoutStatus {
 }
 
 enum OrderAttributionSource {
+  discount_code
+  referral_link
   affiliate_link
   shop_discount_code
   manual
   order_request
-  none
+  imported
 }
 
 enum RiskFlagStatus {
@@ -209,7 +211,7 @@ model PartnerOrderAttribution {
   id            String                 @id @default(cuid())
   orderId       String
   partnerCodeId String?
-  source        OrderAttributionSource @default(none)
+  source        OrderAttributionSource
   value         String?
   note          String?
   createdAt     DateTime               @default(now())
