@@ -1,3 +1,4 @@
+import { ATTRIBUTION_SOURCES } from "../src/features/partners/attribution-sources";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -83,8 +84,8 @@ async function main() {
 
   await prisma.partnerCode.upsert({
     where: { code: "MERLYCTV001" },
-    update: { codePurpose: "affiliate_tracking", source: "affiliate_link" },
-    create: { partnerId: approved.id, code: "MERLYCTV001", source: "affiliate_link", codePurpose: "affiliate_tracking" },
+    update: { codePurpose: "affiliate_tracking", source: ATTRIBUTION_SOURCES.AFFILIATE_LINK },
+    create: { partnerId: approved.id, code: "MERLYCTV001", source: ATTRIBUTION_SOURCES.AFFILIATE_LINK, codePurpose: "affiliate_tracking" },
   });
   await prisma.partnerCode.updateMany({
     where: { partner: { partnerType: { code: "referral_ctv" } } },

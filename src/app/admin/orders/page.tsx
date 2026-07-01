@@ -71,7 +71,7 @@ export default async function Page() {
                     <td className="p-3 font-medium">{order.orderCode}</td>
                     <td className="p-3">{order.partner?.displayName ?? "Chưa gắn CTV/đối tác"}</td>
                     <td className="p-3">{order.partner?.partnerType.code ?? "-"}</td>
-                    <td className="p-3">{attribution?.source ?? "none"}</td>
+                    <td className="p-3">{attribution?.source ?? "Chưa gắn CTV/đối tác"}</td>
                     <td className="p-3">{attribution?.partnerCode?.code ?? attribution?.value ?? "-"}</td>
                     <td className="p-3">{order.eligibleProductRevenue.toLocaleString("vi-VN")} VND</td>
                   </tr>

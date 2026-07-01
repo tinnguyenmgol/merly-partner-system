@@ -1,7 +1,6 @@
 ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'affiliate_link';
 ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'shop_discount_code';
 ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'order_request';
-ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'none';
 
 ALTER TABLE "PartnerCode" ADD COLUMN IF NOT EXISTS "codePurpose" TEXT NOT NULL DEFAULT 'affiliate_tracking';
 ALTER TABLE "PartnerCode" ADD COLUMN IF NOT EXISTS "commissionRateBps" INTEGER;
@@ -43,8 +42,8 @@ BEGIN
   END IF;
 END $$;
 ALTER TABLE "PartnerCode" ALTER COLUMN "source" SET DEFAULT 'affiliate_link';
-ALTER TABLE "PartnerOrderAttribution" ALTER COLUMN "source" SET DEFAULT 'none';
+ALTER TABLE "PartnerOrderAttribution" ALTER COLUMN "source" SET DEFAULT 'imported';
 UPDATE "PartnerCode" SET "source" = 'affiliate_link' WHERE "source"::text IN ('discount_code', 'referral_link', 'imported');
 UPDATE "PartnerOrderAttribution" SET "source" = 'shop_discount_code' WHERE "source"::text = 'discount_code';
 UPDATE "PartnerOrderAttribution" SET "source" = 'affiliate_link' WHERE "source"::text = 'referral_link';
-UPDATE "PartnerOrderAttribution" SET "source" = 'none' WHERE "source"::text = 'imported';
+UPDATE "PartnerOrderAttribution" SET "source" = 'imported' WHERE "source"::text = 'imported';

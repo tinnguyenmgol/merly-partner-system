@@ -1,3 +1,4 @@
+import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import type { Prisma } from "@prisma/client";
 import type { HaravanOrder } from "./types";
 
@@ -93,7 +94,7 @@ export async function resolveHaravanAttribution(
     if (match && candidates.explicit.length === 1)
       return {
         partnerCode: match,
-        source: "affiliate_link" as const,
+        source: ATTRIBUTION_SOURCES.AFFILIATE_LINK,
         value: code,
         note: "Matched referral_ctv affiliate code from Haravan attributes.",
       };
@@ -103,9 +104,19 @@ export async function resolveHaravanAttribution(
     if (match && candidates.landing.length === 1)
       return {
         partnerCode: match,
-        source: "affiliate_link" as const,
+        source: ATTRIBUTION_SOURCES.AFFILIATE_LINK,
         value: code,
         note: "Matched referral_ctv affiliate code from landing URL.",
+      };
+  }
+  for (const code of candidates.discounts) {
+    const match = await findCode(code, "referral_ctv");
+    if (match && candidates.discounts.length === 1)
+      return {
+        partnerCode: match,
+        source: ATTRIBUTION_SOURCES.DISCOUNT_CODE,
+        value: code,
+        note: "Matched referral_ctv discount code from Haravan discounts.",
       };
   }
   for (const code of candidates.discounts) {
@@ -113,7 +124,7 @@ export async function resolveHaravanAttribution(
     if (match && candidates.discounts.length === 1)
       return {
         partnerCode: match,
-        source: "shop_discount_code" as const,
+        source: ATTRIBUTION_SOURCES.SHOP_DISCOUNT_CODE,
         value: code,
         note: "Matched shop_referral discount code.",
       };
@@ -121,7 +132,7 @@ export async function resolveHaravanAttribution(
 
   return {
     partnerCode: null,
-    source: "none" as const,
+    source: null,
     value:
       [
         ...candidates.explicit,

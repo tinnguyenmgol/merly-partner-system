@@ -1,5 +1,6 @@
 "use server";
 
+import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, hasDatabaseUrl } from "@/lib/db";
@@ -130,11 +131,11 @@ async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: 
     const existing = await tx.partnerCode.findUnique({ where: { code } });
 
     if (!existing) {
-      return tx.partnerCode.create({ data: { partnerId, code, source: "affiliate_link", codePurpose: "affiliate_tracking" } });
+      return tx.partnerCode.create({ data: { partnerId, code, source: ATTRIBUTION_SOURCES.AFFILIATE_LINK, codePurpose: "affiliate_tracking" } });
     }
   }
 
-  return tx.partnerCode.create({ data: { partnerId, code: `MERLY${partnerId.slice(-10).toUpperCase()}`, source: "affiliate_link", codePurpose: "affiliate_tracking" } });
+  return tx.partnerCode.create({ data: { partnerId, code: `MERLY${partnerId.slice(-10).toUpperCase()}`, source: ATTRIBUTION_SOURCES.AFFILIATE_LINK, codePurpose: "affiliate_tracking" } });
 }
 
 export async function submitPartnerRegistration(_previousState: PartnerRegistrationState, formData: FormData): Promise<PartnerRegistrationState> {

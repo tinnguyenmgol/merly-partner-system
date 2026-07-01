@@ -1,3 +1,4 @@
+import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { calculateEligibleProductRevenue } from "@/lib/money";
 import { HaravanClient } from "./haravan-client";
@@ -102,12 +103,12 @@ async function importOrder(order: HaravanOrder) {
       where: { externalOrderId },
     });
     const hasManualAttribution = existing?.attributions.some(
-      (attribution) => attribution.source === "manual",
+      (attribution) => attribution.source === ATTRIBUTION_SOURCES.MANUAL,
     );
     const attribution = hasManualAttribution
       ? {
           partnerCode: null,
-          source: "manual" as const,
+          source: ATTRIBUTION_SOURCES.MANUAL,
           value: undefined,
           note: "Existing manual attribution was preserved.",
         }
@@ -178,18 +179,29 @@ async function importOrder(order: HaravanOrder) {
       await tx.partnerOrderAttribution.deleteMany({
         where: {
           orderId: partnerOrder.id,
-          source: { in: ["affiliate_link", "shop_discount_code", "none"] },
+          source: {
+            in: [
+              ATTRIBUTION_SOURCES.AFFILIATE_LINK,
+              ATTRIBUTION_SOURCES.DISCOUNT_CODE,
+              ATTRIBUTION_SOURCES.SHOP_DISCOUNT_CODE,
+              ATTRIBUTION_SOURCES.REFERRAL_LINK,
+              ATTRIBUTION_SOURCES.IMPORTED,
+              ATTRIBUTION_SOURCES.ORDER_REQUEST,
+            ],
+          },
         },
       });
-      await tx.partnerOrderAttribution.create({
-        data: {
-          orderId: partnerOrder.id,
-          partnerCodeId: attribution.partnerCode?.id,
-          source: attribution.source,
-          value: attribution.value,
-          note: attribution.note,
-        },
-      });
+      if (attribution.partnerCode && attribution.source) {
+        await tx.partnerOrderAttribution.create({
+          data: {
+            orderId: partnerOrder.id,
+            partnerCodeId: attribution.partnerCode.id,
+            source: attribution.source,
+            value: attribution.value,
+            note: attribution.note,
+          },
+        });
+      }
     }
 
     if (
