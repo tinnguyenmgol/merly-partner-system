@@ -7,6 +7,7 @@ import {
   type PartnerOrder,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 
 export const RECONCILIATION_WAIT_DAYS = 7;
 export const DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS = 1000;
@@ -242,7 +243,7 @@ export async function recalculateOrderCommission(
       include: {
         partner: { include: { partnerType: true } },
         ledgerEntries: true,
-        attributions: true,
+        attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } } },
       },
       where: { id: orderId },
     });

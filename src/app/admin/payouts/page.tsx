@@ -3,6 +3,7 @@ import { approvePayoutAction, cancelPayoutAction, getLastPayoutReconciliationAt,
 import { getOrderCommissionBlockReason } from "@/features/commissions";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { formatVnd } from "@/lib/money";
+import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function Page() {
                 include: {
                   order: {
                     include: {
-                      attributions: { take: 1, orderBy: { createdAt: "asc" } },
+                      attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } }, take: 1, orderBy: { createdAt: "asc" } },
                     },
                   },
                 },

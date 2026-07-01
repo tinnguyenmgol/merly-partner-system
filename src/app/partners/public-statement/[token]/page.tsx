@@ -10,6 +10,7 @@ import {
   summarizeOrders,
 } from "@/features/commissions";
 import { db, hasDatabaseUrl } from "@/lib/db";
+import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { formatVnd } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export default async function Page({
           codes: { where: { active: true }, orderBy: { createdAt: "desc" } },
           orders: {
             include: {
-              attributions: { orderBy: { createdAt: "asc" } },
+              attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } }, orderBy: { createdAt: "asc" } },
               ledgerEntries: true,
             },
             orderBy: { createdAt: "desc" },
@@ -39,7 +40,7 @@ export default async function Page({
             include: {
               order: {
                 include: {
-                  attributions: { orderBy: { createdAt: "asc" }, take: 1 },
+                  attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } }, orderBy: { createdAt: "asc" }, take: 1 },
                 },
               },
             },

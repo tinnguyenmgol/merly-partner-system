@@ -4,6 +4,7 @@ import { ACTIVE_LEDGER_STATUSES, formatCommissionRate, getOrderCommissionBlockRe
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 import { formatVnd } from "@/lib/money";
+import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
             availableAt: true,
             reason: true,
             partner: { select: { id: true, displayName: true } },
-            order: { select: { orderCode: true, status: true, cancelledAt: true, returnedAt: true, disputedAt: true, attributions: { select: { source: true }, take: 1, orderBy: { createdAt: "asc" } } } },
+            order: { select: { orderCode: true, status: true, cancelledAt: true, returnedAt: true, disputedAt: true, attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } }, select: { source: true }, take: 1, orderBy: { createdAt: "asc" } } } },
           },
           orderBy: { updatedAt: "desc" },
           take: 100,
