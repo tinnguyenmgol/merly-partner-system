@@ -1,0 +1,4 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root{color-scheme:light} body{background:#fff7f8;color:#2f1720} .card{@apply rounded-2xl border border-rose-100 bg-white/90 p-5 shadow-sm} .btn-primary{@apply rounded-full bg-merly-700 px-5 py-3 font-semibold text-white hover:bg-merly-900} .btn-secondary{@apply rounded-full border border-merly-200 bg-white px-5 py-3 font-semibold text-merly-700 hover:bg-merly-50} .input{@apply rounded-xl border border-rose-100 bg-white px-4 py-3 outline-none focus:border-merly-500}

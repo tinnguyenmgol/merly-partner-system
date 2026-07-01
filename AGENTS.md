@@ -1,74 +1,18 @@
 # AGENTS.md — Merly Partner System
 
-## Project context
+## Context
+Build Merly Partner System as an extensible partner platform. Phase 1 implements only `referral_ctv` (CTV không ôm hàng); future partner types are `mini_corner`, `wholesale_agent`, `shop_referral`, and `affiliate_creator`.
 
-This project is Merly Partner System, starting with the "CTV không ôm hàng" module for Merly Shoes.
+## Domain rules
+Use partner-oriented names in backend/database/code. Public UI may say CTV Merly. Do not create hard-coded CTV-only domain models. Use `/logo/merly-logo.png` in UI with alt text `Merly Shoes` wherever branding appears.
 
-The system must be designed as a partner platform, not only a CTV app. Future partner types include:
-- referral_ctv
-- mini_corner
-- wholesale_agent
-- shop_referral
-- affiliate_creator
+## Logo and binary files
+Do not add, edit, or commit binary image files from Codex. Keep the source logo at `logo/merly-logo.png` when it is provided by humans, and use `scripts/sync-logo.js` to copy it into `public/logo/merly-logo.png` for local Next.js static serving. If the logo is missing, keep fallback UI text `Merly Shoes`.
 
-Phase 1 only implements referral_ctv.
+## Commission rules
+Commission applies only to valid `referral_ctv` orders. Use `eligible_product_revenue`: collected product revenue after discount, excluding shipping, surcharges, COD/service, boxes, bags, and other non-product fees. Money is integer VND. Commission ledger is the source of truth.
 
-## Business rules
+Default policy must be configurable: 10% listed price, 7% for 5–10% discount, 0% unauthorized discount, manual review above 10% discount, and admin-approved eligibility for 12%/15% levels.
 
-Commission applies only to referral_ctv orders.
-
-Commission base:
-- product revenue actually collected after discount
-- exclude shipping
-- exclude surcharges
-- exclude boxes, bags, or non-product fees
-- exclude cancelled, returned, refused, or disputed orders
-
-Default commission rules:
-- listed price, no discount: 10%
-- 10 successful orders/month: eligible for admin-approved 12%
-- 30 successful orders/month: eligible for admin-approved 15%
-- discount from 5% to 10%: default 7%
-- discount above 10%, deep sale, clearance: manual review or campaign-specific rate
-- unauthorized partner discount: 0%
-
-Commission status flow:
-- temporary when order is created
-- pending_delivery while order is not delivered
-- reconciliation_waiting after successful delivery
-- payable after 7 days without cancellation, return, refusal, or dispute
-- paid after payout
-- rejected if invalid
-- on_hold if manual review is needed
-
-Minimum payout:
-- 100,000 VND
-- unpaid commission below this amount rolls over to the next period
-
-Personal/family orders:
-- allowed
-- still eligible if genuine, paid, delivered, and not returned/cancelled
-- suspicious patterns should be flagged, not auto-rejected
-
-## Technical rules
-
-Use TypeScript.
-Use clear domain naming:
-- partner, not ctv, in backend/database
-- referral_ctv as partner_type
-- commission_ledger as source of truth for commission movement
-
-Do not hard-code commission rates directly in business logic. Use configurable rules where practical.
-
-Every money value should be stored in VND integer units.
-
-Every admin action that changes partner status, commission, payout, or attribution should create an audit log.
-
-## Testing
-
-Add tests for:
-- commission base calculation
-- commission status transitions
-- payout minimum and rollover
-- invalid order rejection
-- discounted order commission
+## Audit and testing
+Admin actions changing partner status, commission, payout, or attribution must create audit logs. Add tests for commission base, status transitions, payout minimum/rollover, invalid order rejection, and discounted commission when business logic is implemented.

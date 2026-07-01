@@ -1,0 +1,3 @@
+import {DashboardShell} from "@/components/layout/dashboard-shell";import {StatCard} from "@/components/ui/stat-card";
+const stats=['Doanh thu tháng này','Đơn thành công','Đơn đang xử lý','Hoa hồng tạm tính','Hoa hồng có thể trả','Hoa hồng đã trả','Cấp bậc hiện tại','Tiến độ cấp tiếp theo'];
+export default function Dashboard(){return <DashboardShell><h1 className="text-3xl font-bold text-merly-900">Tổng quan đối tác</h1><div className="mt-6 grid gap-4 md:grid-cols-4">{stats.map((s,i)=><StatCard key={s} label={s} value={i===6?'CTV mới':i===7?'4/10 đơn':'0 ₫'} hint="Dữ liệu mẫu"/>)}</div></DashboardShell>}

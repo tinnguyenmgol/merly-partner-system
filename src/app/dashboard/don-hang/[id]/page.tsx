@@ -1,0 +1,1 @@
+import {DashboardShell} from "@/components/layout/dashboard-shell";export default async function Page({params}:{params:Promise<{id:string}>}){const {id}=await params;return <DashboardShell><div className="card"><h1 className="text-3xl font-bold text-merly-900">Đơn hàng {id}</h1><p className="mt-3 text-stone-600">Chi tiết đơn hàng đối tác.</p></div></DashboardShell>}
