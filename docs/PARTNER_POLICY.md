@@ -17,3 +17,8 @@ Tương lai cần phân biệt CTV không ôm hàng với CTV nhập hàng/đạ
 `shop_referral` / shop big-size dùng discount code làm cơ chế gắn đơn chính. Discount code của shop có thể vừa giảm giá cho khách vừa cấu hình tỷ lệ hoa hồng shop.
 
 Commission engine các bước sau phải tính theo partner type/program; không dùng discount code làm mặc định cho `referral_ctv` cá nhân.
+
+## CTV login and dashboard visibility
+Sau khi admin duyệt hồ sơ `referral_ctv`, hệ thống tạo tài khoản đăng nhập ở trạng thái `invited`. Admin copy link thiết lập mật khẩu thủ công cho CTV; link hết hạn sau 7 ngày, chỉ dùng một lần và không lưu raw token trong database. CTV đặt mật khẩu tối thiểu 8 ký tự rồi đăng nhập tại `/dang-nhap` bằng email hoặc số điện thoại.
+
+Dashboard CTV chỉ truy vấn dữ liệu theo partner id trong session hiện tại: mã giới thiệu, đơn đã attribution, ledger hoa hồng, trạng thái đủ mức thanh toán tối thiểu 100.000 VND và hồ sơ thanh toán read-only. Admin có thể disable/enable tài khoản đăng nhập; các hành động này tạo audit log. Reset mật khẩu hiện dùng cùng cơ chế link thủ công do admin regenerate, chưa gửi email/SMS và chưa có OTP.

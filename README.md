@@ -70,3 +70,10 @@ No Mini Corner, wholesale/dealer workflows, webhooks, new commission engine, pay
 
 ## Attribution model
 Individual `referral_ctv` partners use affiliate links (`https://merlyshoes.com/?ref=MERLYCTV001`), admin/manual attribution, or future order requests; customers do not need discount codes. `shop_referral` partners use discount codes where customer discount and shop commission can be tied to the code. Future commission work must calculate by partner type/program instead of assuming one attribution method. See `docs/MERLY_WEBSITE_AFFILIATE_TRACKING.md` for the paste-ready website script.
+
+## CTV authentication and dashboard
+Approved Phase 1 `referral_ctv` partners now use real partner login accounts. When an admin approves a referral CTV profile, the system creates or links a `PartnerAccount` in `invited` status and the admin manually generates/copies a `/thiet-lap-mat-khau?token=...` setup link. Tokens are stored only as hashes, expire after 7 days, and are single-use.
+
+The CTV sets a password, the account becomes `active`, and they log in at `/dang-nhap` with phone or email plus password. Authenticated dashboard pages read the partner id from the server-side session cookie and show only that partner's referral code, orders, commission ledger summary, payout-minimum status, and read-only profile details. `/dang-xuat` revokes the session and clears the httpOnly cookie.
+
+Out of scope remains full admin auth/RBAC, email/SMS sending, OTP, payout requests, and specialized Mini Corner/wholesale/shop-referral dashboards.

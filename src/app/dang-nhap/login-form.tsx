@@ -1,0 +1,4 @@
+"use client";
+import { useActionState } from "react";
+import { loginAction } from "@/features/auth/actions";
+export function LoginForm({ setupSuccess }: { setupSuccess: boolean }) { const [state, action, pending] = useActionState(loginAction, { message: "" }); return <form action={action} className="mt-6 grid gap-4">{setupSuccess ? <p className="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700">Đã thiết lập mật khẩu. Vui lòng đăng nhập.</p> : null}{state.message ? <p className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">{state.message}</p> : null}<input className="input" name="login" placeholder="Email hoặc số điện thoại" required/><input className="input" name="password" type="password" placeholder="Mật khẩu" required/><button className="btn-primary" disabled={pending}>{pending ? "Đang đăng nhập..." : "Đăng nhập"}</button></form> }

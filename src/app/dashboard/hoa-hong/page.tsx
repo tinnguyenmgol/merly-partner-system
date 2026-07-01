@@ -1,1 +1,6 @@
-import {DashboardShell} from "@/components/layout/dashboard-shell";export default function Page(){return <DashboardShell><div className="card"><h1 className="text-3xl font-bold text-merly-900">hoa-hong</h1><p className="mt-3 text-stone-600">Trang shell được bảo vệ trong phiên bản sau.</p></div></DashboardShell>}
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { requirePartnerSession } from "@/features/auth/partner-auth";
+import { MINIMUM_PAYOUT_AMOUNT_VND, summarizeLedgers } from "@/features/commissions";
+import { formatVnd } from "@/lib/money";
+export const dynamic = "force-dynamic";
+export default async function Page(){const s=await requirePartnerSession(); const {db}=await import("@/lib/db"); const ledgers=await db.partnerCommissionLedger.findMany({where:{partnerId:s.account.partner.id},orderBy:{createdAt:"desc"},include:{order:true}}); const summary=summarizeLedgers(ledgers);return <DashboardShell><div className="card"><h1 className="text-3xl font-bold text-merly-900">Hoa hồng</h1><div className="mt-4 grid gap-3 md:grid-cols-5">{(["temporary","reconciliation_waiting","payable","paid","rejected","on_hold"] as const).map(st=><div className="rounded-xl bg-rose-50 p-3" key={st}>{st}<br/><b>{formatVnd(summary[st])}</b></div>)}</div><p className="mt-4">{summary.payable<MINIMUM_PAYOUT_AMOUNT_VND?"Chưa đủ mức thanh toán tối thiểu 100.000 VND, hoa hồng sẽ được cộng dồn.":"Đã đủ mức thanh toán tối thiểu."}</p></div></DashboardShell>}

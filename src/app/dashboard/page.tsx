@@ -1,3 +1,6 @@
-import {DashboardShell} from "@/components/layout/dashboard-shell";import {StatCard} from "@/components/ui/stat-card";
-const stats=['Doanh thu tháng này','Đơn thành công','Đơn đang xử lý','Hoa hồng tạm tính','Hoa hồng có thể trả','Hoa hồng đã trả','Cấp bậc hiện tại','Tiến độ cấp tiếp theo'];
-export default function Dashboard(){return <DashboardShell><h1 className="text-3xl font-bold text-merly-900">Tổng quan đối tác</h1><div className="mt-6 grid gap-4 md:grid-cols-4">{stats.map((s,i)=><StatCard key={s} label={s} value={i===6?'CTV mới':i===7?'4/10 đơn':'0 ₫'} hint="Dữ liệu mẫu"/>)}</div></DashboardShell>}
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { requirePartnerSession } from "@/features/auth/partner-auth";
+import { MINIMUM_PAYOUT_AMOUNT_VND, summarizeLedgers } from "@/features/commissions";
+import { formatVnd } from "@/lib/money";
+export const dynamic = "force-dynamic";
+export default async function Dashboard(){const session=await requirePartnerSession(); const p=session.account.partner; const orders=await import("@/lib/db").then(({db})=>db.partnerOrder.findMany({where:{partnerId:p.id},include:{ledgerEntries:true}})); const ledgers=orders.flatMap(o=>o.ledgerEntries); const summary=summarizeLedgers(ledgers); const revenue=orders.reduce((s,o)=>s+o.eligibleProductRevenue,0); const code=p.codes[0]?.code??"—";return <DashboardShell><h1 className="text-3xl font-bold text-merly-900">Tổng quan {p.displayName}</h1><p className="mt-2 text-stone-600">Mã đối tác {code} · https://merlyshoes.com/?ref={code}</p><div className="mt-6 grid gap-4 md:grid-cols-3"><div className="card"><p>Đơn được ghi nhận</p><b>{orders.length}</b></div><div className="card"><p>Doanh thu hợp lệ</p><b>{formatVnd(revenue)}</b></div><div className="card"><p>Hoa hồng có thể trả</p><b>{formatVnd(summary.payable)}</b><p className="text-sm text-stone-500">Tối thiểu {formatVnd(MINIMUM_PAYOUT_AMOUNT_VND)}</p></div></div></DashboardShell>}
