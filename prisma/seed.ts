@@ -38,6 +38,8 @@ async function main() {
     await prisma.partnerCommissionRule.create({ data: { ...rule, partnerTypeId: referral.id } });
   }
 
+  await prisma.partnerLevelRule.deleteMany();
+
   for (const [rank, name, orders] of [
     [1, "CTV mới", 0],
     [2, "CTV hoạt động", 10],
@@ -53,7 +55,7 @@ async function main() {
         commissionRateBps: rank > 2 ? (rank === 3 ? 1200 : 1500) : 1000,
         requiresAdminApproval: rank > 2,
       },
-    }).catch(() => undefined);
+    });
   }
 
   const approved = await prisma.partner.upsert({
@@ -113,6 +115,10 @@ async function main() {
     },
   });
 
+  await prisma.partnerCommissionLedger.deleteMany({
+    where: { orderId: order.id, reason: "Demo listed price commission" },
+  });
+
   await prisma.partnerCommissionLedger.create({
     data: {
       partnerId: approved.id,
@@ -123,7 +129,7 @@ async function main() {
       eligibleProductRevenue: 1200000,
       reason: "Demo listed price commission",
     },
-  }).catch(() => undefined);
+  });
 }
 
 main().finally(() => prisma.$disconnect());
