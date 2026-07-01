@@ -36,7 +36,9 @@ enum CommissionStatus {
 enum PayoutStatus {
   draft
   pending
+  approved
   paid
+  rejected
   cancelled
 }
 
@@ -334,7 +336,12 @@ model PartnerPayout {
   amount              Int
   minimumPayoutAmount Int          @default(100000)
   rolloverAmount      Int          @default(0)
+  requestedAt         DateTime?
+  approvedAt          DateTime?
   paidAt              DateTime?
+  rejectedAt          DateTime?
+  rejectReason        String?
+  lastReconciledAt    DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
