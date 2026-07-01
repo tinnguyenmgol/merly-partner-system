@@ -49,7 +49,7 @@ npm run build # runs sync-logo before next build
 ```
 
 ## Current phase scope
-Implemented: route shells, responsive UI, Merly logo usage, Prisma schema, seed data, docs, and Haravan placeholder structure.
+Implemented: route shells, responsive UI, Merly logo usage, Prisma schema, seed data, docs, partner intake/review, and manual Haravan order sync with referral_ctv discount-code attribution.
 
 ## Not implemented yet
-No Mini Corner, wholesale/dealer workflows, payment automation, full Haravan sync, production auth, or complex analytics are implemented in Phase 1.
+No Mini Corner, wholesale/dealer workflows, webhooks, commission engine, payout engine, payment automation, production auth, or complex analytics are implemented in Phase 1.
