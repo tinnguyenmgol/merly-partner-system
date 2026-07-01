@@ -1,1 +1,57 @@
-import {DashboardShell} from "@/components/layout/dashboard-shell";export default function Haravan(){return <DashboardShell admin><div className="card"><h1 className="text-3xl font-bold text-merly-900">Cài đặt Haravan</h1><div className="mt-6 grid gap-4 md:grid-cols-2">{['Shop domain','API connection status','Last sync time','Last sync result','Sync logs'].map(x=><label className="grid gap-2 text-sm" key={x}>{x}<input className="input" placeholder="Chưa cấu hình" readOnly/></label>)}<button className="btn-primary md:col-span-2" type="button">Manual sync (placeholder)</button></div></div></DashboardShell>}
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { runHaravanOrderSync } from "@/features/haravan/actions";
+import { HaravanClient } from "@/features/haravan/haravan-client";
+import { db, hasDatabaseUrl } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+export default async function Haravan() {
+  const clientStatus = await new HaravanClient().healthCheck();
+  const latestLogs = hasDatabaseUrl()
+    ? await db.haravanSyncLog.findMany({ orderBy: { startedAt: "desc" }, take: 5 })
+    : [];
+  const latestLog = latestLogs[0];
+
+  return (
+    <DashboardShell admin>
+      <div className="card">
+        <h1 className="text-3xl font-bold text-merly-900">Cài đặt Haravan</h1>
+        <p className="mt-3 text-stone-600">
+          Đồng bộ thủ công đơn hàng Haravan và gán đối tác referral_ctv bằng mã giảm giá. Webhook, commission engine và payout engine chưa được triển khai trong bước này.
+        </p>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl bg-rose-50/60 p-4">
+            <p className="text-sm text-stone-500">API connection status</p>
+            <p className="mt-1 font-semibold text-merly-900">{clientStatus.ok ? "Đã cấu hình" : clientStatus.message}</p>
+          </div>
+          <div className="rounded-xl bg-rose-50/60 p-4">
+            <p className="text-sm text-stone-500">Last sync result</p>
+            <p className="mt-1 font-semibold text-merly-900">{latestLog ? `${latestLog.status}: ${latestLog.message ?? "Không có thông điệp"}` : "Chưa có sync"}</p>
+          </div>
+          <div className="rounded-xl bg-rose-50/60 p-4">
+            <p className="text-sm text-stone-500">Last sync time</p>
+            <p className="mt-1 font-semibold text-merly-900">{latestLog?.finishedAt?.toLocaleString("vi-VN") ?? latestLog?.startedAt.toLocaleString("vi-VN") ?? "—"}</p>
+          </div>
+          <form action={runHaravanOrderSync} className="rounded-xl border border-rose-100 p-4">
+            <p className="text-sm text-stone-500">Manual order sync</p>
+            <button className="btn-primary mt-3" type="submit" disabled={!clientStatus.ok || !hasDatabaseUrl()}>
+              Chạy sync đơn hàng
+            </button>
+          </form>
+        </div>
+      </div>
+      <div className="card mt-6">
+        <h2 className="text-xl font-bold text-merly-900">Sync logs</h2>
+        <div className="mt-4 grid gap-3">
+          {latestLogs.map((log) => (
+            <div className="rounded-xl border border-rose-100 p-4" key={log.id}>
+              <b>{log.syncType} · {log.status}</b>
+              <p className="text-sm text-stone-500">{log.startedAt.toLocaleString("vi-VN")} · {log.message ?? "Không có thông điệp"}</p>
+            </div>
+          ))}
+          {latestLogs.length === 0 && <p className="text-sm text-stone-500">Chưa có Haravan sync log.</p>}
+        </div>
+      </div>
+    </DashboardShell>
+  );
+}
