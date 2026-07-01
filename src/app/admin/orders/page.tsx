@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { displayOrderCommissionStatus, getOrderCommissionBlockReason } from "@/features/commissions";
 import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 
@@ -16,6 +17,10 @@ export default async function Page() {
             id: true,
             orderCode: true,
             eligibleProductRevenue: true,
+            status: true,
+            cancelledAt: true,
+            returnedAt: true,
+            disputedAt: true,
             partner: {
               select: {
                 displayName: true,
@@ -63,6 +68,9 @@ export default async function Page() {
                 <th className="p-3">Nguồn gắn</th>
                 <th className="p-3">Mã khớp</th>
                 <th className="p-3">Doanh thu hợp lệ</th>
+                <th className="p-3">Trạng thái local</th>
+                <th className="p-3">Haravan hủy/hoàn</th>
+                <th className="p-3">Lý do chặn hoa hồng</th>
               </tr>
             </thead>
             <tbody>
@@ -76,12 +84,15 @@ export default async function Page() {
                     <td className="p-3">{attribution?.source ?? "Chưa gắn CTV/đối tác"}</td>
                     <td className="p-3">{attribution?.partnerCode?.code ?? attribution?.value ?? "-"}</td>
                     <td className="p-3">{order.eligibleProductRevenue.toLocaleString("vi-VN")} VND</td>
+                    <td className="p-3">{order.status}</td>
+                    <td className="p-3">{displayOrderCommissionStatus(order)}</td>
+                    <td className="p-3">{getOrderCommissionBlockReason(order) ?? "—"}</td>
                   </tr>
                 );
               })}
               {orders.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-stone-500" colSpan={6}>Chưa có đơn hàng.</td>
+                  <td className="p-3 text-stone-500" colSpan={9}>Chưa có đơn hàng.</td>
                 </tr>
               ) : null}
             </tbody>

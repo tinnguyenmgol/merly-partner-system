@@ -42,13 +42,16 @@ export class HaravanClient {
     return { ok: true, message: "Configured" };
   }
 
-  async listOrders({ limit = 50, page }: { limit?: number; page?: number } = {}) {
+  async listOrders({ limit = 50, page, updatedAtMin, sinceId, order = "updated_at desc" }: { limit?: number; page?: number; updatedAtMin?: Date | string; sinceId?: string | number; order?: string } = {}) {
     const health = await this.healthCheck();
     if (!health.ok) throw new Error(health.message);
 
     const url = new URL(`${this.apiBaseUrl}${ORDERS_ENDPOINT_PATH}`);
     url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 250)));
     if (page) url.searchParams.set("page", String(page));
+    if (updatedAtMin) url.searchParams.set("updated_at_min", updatedAtMin instanceof Date ? updatedAtMin.toISOString() : updatedAtMin);
+    if (sinceId) url.searchParams.set("since_id", String(sinceId));
+    url.searchParams.set("order", order);
 
     const response = await fetch(url, {
       headers: {
