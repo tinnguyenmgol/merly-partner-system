@@ -16,6 +16,16 @@ npm run prisma:migrate
 npm run prisma:seed
 ```
 
+
+After each deploy that introduces database schema changes, especially affiliate tracking fields on `PartnerCode` and `PartnerClick`, run:
+
+```bash
+npm run db:migrate
+npm run db:bootstrap
+```
+
+These commands apply the committed Prisma migrations and bootstrap expected partner-code purposes; do not rely only on manual Supabase SQL hotfixes.
+
 ## Seed data
 The seed keeps the platform partner-first while enabling only the Phase 1 `referral_ctv` partner type. Future partner types are present as disabled catalog records only. Seed data includes default referral commission policy records, partner levels requiring admin approval for higher tiers, sample partners, `MERLYCTV001`, and demo order/ledger rows for development review.
 

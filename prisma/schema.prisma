@@ -118,6 +118,8 @@ model PartnerCode {
   partner      Partner                   @relation(fields: [partnerId], references: [id])
   attributions PartnerOrderAttribution[]
   clicks       PartnerClick[]
+
+  @@index([codePurpose])
 }
 
 model PartnerClick {

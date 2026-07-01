@@ -83,8 +83,27 @@ async function main() {
 
   await prisma.partnerCode.upsert({
     where: { code: "MERLYCTV001" },
-    update: {},
+    update: { codePurpose: "affiliate_tracking", source: "affiliate_link" },
     create: { partnerId: approved.id, code: "MERLYCTV001", source: "affiliate_link", codePurpose: "affiliate_tracking" },
+  });
+  await prisma.partnerCode.updateMany({
+    where: { partner: { partnerType: { code: "referral_ctv" } } },
+    data: { codePurpose: "affiliate_tracking" },
+  });
+
+  await prisma.partnerCode.updateMany({
+    where: { partner: { partnerType: { code: "shop_referral" } } },
+    data: { codePurpose: "shop_discount_code" },
+  });
+
+  await prisma.partnerCode.updateMany({
+    where: { partner: { partnerType: { code: { in: ["mini_corner", "wholesale_agent"] } } } },
+    data: { codePurpose: "manual_referral" },
+  });
+
+  await prisma.partnerCode.updateMany({
+    where: { partner: { partnerType: { code: "affiliate_creator" } } },
+    data: { codePurpose: "affiliate_tracking" },
   });
 
   await prisma.partner.upsert({

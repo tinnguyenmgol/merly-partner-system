@@ -1,34 +1,52 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { db, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  if (!hasDatabaseUrl()) {
-    return (
-      <DashboardShell admin>
-        <div className="card">
-          <h1 className="text-3xl font-bold text-merly-900">Quản lý đối tác</h1>
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 font-medium text-amber-800">
-            Chưa cấu hình DATABASE_URL nên chưa thể tải danh sách CTV.
-          </p>
-        </div>
-      </DashboardShell>
-    );
-  }
+type PartnerRow = Prisma.PartnerGetPayload<{
+  include: {
+    partnerType: true;
+    profile: true;
+    codes: { select: { code: true } };
+  };
+}>;
 
-  const partners = await db.partner.findMany({
-    include: { partnerType: true, profile: true, codes: true },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 100,
-  });
+export default async function Page() {
+  let schemaWarning: string | null = null;
+  const partners: PartnerRow[] = [];
+
+  if (hasDatabaseUrl()) {
+    try {
+      partners.push(
+        ...(await db.partner.findMany({
+          include: {
+            partnerType: true,
+            profile: true,
+            codes: { select: { code: true } },
+          },
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          take: 100,
+        })),
+      );
+    } catch (error) {
+      console.error("Failed to load admin partners", error);
+      schemaWarning = "Không thể tải danh sách đối tác. Nếu vừa triển khai bản mới, hãy chạy npm run db:migrate rồi npm run db:bootstrap.";
+    }
+  }
 
   return (
     <DashboardShell admin>
       <div className="card">
         <h1 className="text-3xl font-bold text-merly-900">Quản lý đối tác</h1>
         <p className="mt-3 text-stone-600">Tiếp nhận đăng ký referral_ctv, duyệt hồ sơ, quản lý mã giới thiệu và theo dõi trạng thái đối tác.</p>
+        {!hasDatabaseUrl() ? (
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 font-medium text-amber-800">
+            Chưa cấu hình DATABASE_URL nên chưa thể tải danh sách CTV.
+          </p>
+        ) : null}
+        {schemaWarning ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">{schemaWarning}</p> : null}
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="text-stone-500">
