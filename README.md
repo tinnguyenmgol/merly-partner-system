@@ -44,6 +44,10 @@ Seed data includes partner types with only `referral_ctv` enabled, default commi
 
 
 ## Deployment
+- Recommended production Node runtime: **Node 20 LTS** when keeping Prisma Client 5.22. The repository includes `.nvmrc` with `20` for hosts that support nvm.
+- Prisma Client is instantiated through `src/lib/db.ts` and cached on `globalThis`, including production, to avoid multiple query-engine clients if Hostinger loads separate server chunks in the same Node process.
+- If production logs show a Prisma query engine panic such as `PrismaClientRustPanicError` or `PANIC: timer has gone away`, restart the Hostinger Node app after switching to Node 20 LTS.
+- After schema changes, run `npm run db:migrate` and `npm run db:bootstrap` over SSH. If SSH is unavailable during an incident, apply the reviewed Supabase SQL hotfix first, then run the migration/bootstrap commands when access is restored so Prisma migrations remain the long-term source of truth.
 - Configure `DATABASE_URL` in the hosting/runtime environment before using partner registration or admin review features.
 - Apply production migrations with `DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?schema=public" npm run prisma:migrate:deploy`; keep real credentials out of git.
 - Admin partner management and public CTV registration require a live PostgreSQL database at runtime.

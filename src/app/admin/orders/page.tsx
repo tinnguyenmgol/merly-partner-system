@@ -1,5 +1,5 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { db, hasDatabaseUrl } from "@/lib/db";
+import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,22 @@ export default async function Page() {
     try {
       orders.push(
         ...(await db.partnerOrder.findMany({
-          include: {
-            partner: { include: { partnerType: true } },
+          select: {
+            id: true,
+            orderCode: true,
+            eligibleProductRevenue: true,
+            partner: {
+              select: {
+                displayName: true,
+                partnerType: { select: { code: true } },
+              },
+            },
             attributions: {
-              include: { partnerCode: { select: { code: true } } },
+              select: {
+                source: true,
+                value: true,
+                partnerCode: { select: { code: true } },
+              },
               orderBy: { createdAt: "desc" },
               take: 1,
             },
@@ -25,7 +37,10 @@ export default async function Page() {
       );
     } catch (error) {
       console.error("Failed to load admin orders", error);
-      schemaWarning = "Không thể tải đơn hàng. Nếu schema database đang cũ, hãy chạy npm run db:migrate rồi npm run db:bootstrap.";
+      schemaWarning = getDatabaseErrorMessage(
+        error,
+        "Không thể tải đơn hàng. Nếu schema database đang cũ, hãy chạy npm run db:migrate rồi npm run db:bootstrap.",
+      );
     }
   }
 
