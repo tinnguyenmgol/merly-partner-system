@@ -1,5 +1,6 @@
 import { ATTRIBUTION_SOURCES, VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, hasDatabaseUrl } from "@/lib/db";
+import { recalculateOrderCommission } from "@/features/commissions";
 import { calculateEligibleProductRevenue } from "@/lib/money";
 import { HaravanClient } from "./haravan-client";
 import {
@@ -84,11 +85,19 @@ function shippingFee(order: HaravanOrder) {
   );
 }
 
+function normalized(value?: string | null) { return value?.trim().toLowerCase().replace(/\s+/g, "_") ?? ""; }
+
 function mapStatus(order: HaravanOrder) {
-  if (order.cancelled_at) return "cancelled";
-  if (order.fulfillment_status === "fulfilled") return "delivered";
-  if (order.financial_status === "paid") return "paid";
-  return order.financial_status || order.fulfillment_status || "created";
+  const financial = normalized(order.financial_status);
+  const fulfillment = normalized(order.fulfillment_status);
+  if (order.cancelled_at || ["cancelled", "canceled", "voided", "void"].includes(financial) || ["cancelled", "canceled", "voided", "void"].includes(fulfillment)) return "cancelled";
+  if (["refunded", "partially_refunded"].includes(financial)) return "refunded";
+  if (["returned", "return", "partially_returned"].includes(fulfillment)) return "returned";
+  if (["refused", "failed_delivery", "delivery_failed", "undelivered"].includes(fulfillment)) return "refused";
+  if (["disputed", "chargeback"].includes(financial)) return "disputed";
+  if (fulfillment === "fulfilled") return "delivered";
+  if (financial === "paid") return "paid";
+  return financial || fulfillment || "created";
 }
 
 async function importOrder(order: HaravanOrder) {
@@ -230,6 +239,7 @@ async function importOrder(order: HaravanOrder) {
     const hadCandidate = candidates.explicit.length > 0 || candidates.landing.length > 0 || candidates.discounts.length > 0;
 
     return {
+      orderId: partnerOrder.id,
       attributed: Boolean(attribution.partnerCode),
       skipped: !attribution.partnerCode && hadCandidate,
     };
@@ -264,6 +274,7 @@ export async function syncHaravanOrders(
     const orders = await client.listOrders();
     for (const order of orders) {
       const result = await importOrder(order);
+      await recalculateOrderCommission(result.orderId);
       summary.syncedOrders += 1;
       if (result.attributed) summary.attributedOrders += 1;
       if (result.skipped) summary.skippedOrders += 1;

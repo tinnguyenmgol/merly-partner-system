@@ -1,6 +1,6 @@
 import { CommissionStatus } from "@prisma/client";
 import { recalculateOpenCommissionsAction } from "@/features/commissions/actions";
-import { formatCommissionRate, MINIMUM_PAYOUT_AMOUNT_VND, summarizeLedgers } from "@/features/commissions";
+import { ACTIVE_LEDGER_STATUSES, formatCommissionRate, getOrderCommissionBlockReason, MINIMUM_PAYOUT_AMOUNT_VND, summarizeLedgers } from "@/features/commissions";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 import { formatVnd } from "@/lib/money";
@@ -30,7 +30,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
             availableAt: true,
             reason: true,
             partner: { select: { id: true, displayName: true } },
-            order: { select: { orderCode: true, attributions: { select: { source: true }, take: 1, orderBy: { createdAt: "asc" } } } },
+            order: { select: { orderCode: true, status: true, cancelledAt: true, returnedAt: true, disputedAt: true, attributions: { select: { source: true }, take: 1, orderBy: { createdAt: "asc" } } } },
           },
           orderBy: { updatedAt: "desc" },
           take: 100,
@@ -73,10 +73,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
 
         <div className="card overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="text-stone-500"><tr><th className="py-2">Partner</th><th>Order</th><th>Source</th><th>Eligible revenue</th><th>Rate</th><th>Amount</th><th>Status</th><th>AvailableAt</th><th>Reason</th></tr></thead>
+            <thead className="text-stone-500"><tr><th className="py-2">Partner</th><th>Order</th><th>Source</th><th>Eligible revenue</th><th>Rate</th><th>Amount</th><th>Status</th><th>AvailableAt</th><th>Reason</th><th>Warning</th></tr></thead>
             <tbody>
-              {ledgers.map((ledger) => <tr className="border-t border-stone-100" key={ledger.id}><td className="py-3">{ledger.partner.displayName}</td><td>{ledger.order?.orderCode ?? "Manual"}</td><td>{ledger.order?.attributions[0]?.source ?? "—"}</td><td>{formatVnd(ledger.eligibleProductRevenue)}</td><td>{formatCommissionRate(ledger.commissionRateBps)}</td><td>{formatVnd(ledger.amount)}</td><td>{ledger.status}</td><td>{ledger.availableAt ? ledger.availableAt.toLocaleDateString("vi-VN") : "—"}</td><td>{ledger.reason ?? "—"}</td></tr>)}
-              {ledgers.length === 0 && <tr><td className="py-4 text-stone-500" colSpan={9}>Chưa có ledger phù hợp.</td></tr>}
+              {ledgers.map((ledger) => { const staleBlocked = ledger.order && ACTIVE_LEDGER_STATUSES.includes(ledger.status) && getOrderCommissionBlockReason(ledger.order); return <tr className="border-t border-stone-100" key={ledger.id}><td className="py-3">{ledger.partner.displayName}</td><td>{ledger.order?.orderCode ?? "Manual"}</td><td>{ledger.order?.attributions[0]?.source ?? "—"}</td><td>{formatVnd(ledger.eligibleProductRevenue)}</td><td>{formatCommissionRate(ledger.commissionRateBps)}</td><td>{formatVnd(ledger.amount)}</td><td>{ledger.status}</td><td>{ledger.availableAt ? ledger.availableAt.toLocaleDateString("vi-VN") : "—"}</td><td>{ledger.reason ?? getOrderCommissionBlockReason(ledger.order!) ?? "—"}</td><td>{staleBlocked ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Cần đối soát lại - đơn đã hủy nhưng ledger chưa bị loại.</span> : "—"}</td></tr>})}
+              {ledgers.length === 0 && <tr><td className="py-4 text-stone-500" colSpan={10}>Chưa có ledger phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
