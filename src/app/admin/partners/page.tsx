@@ -1,14 +1,20 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { db, hasDatabaseUrl } from "@/lib/db";
+import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 type PartnerRow = Prisma.PartnerGetPayload<{
-  include: {
-    partnerType: true;
-    profile: true;
+  select: {
+    id: true;
+    displayName: true;
+    phone: true;
+    email: true;
+    status: true;
+    createdAt: true;
+    partnerType: { select: { code: true } };
+    profile: { select: { sellingChannel: true } };
     codes: { select: { code: true } };
   };
 }>;
@@ -21,9 +27,15 @@ export default async function Page() {
     try {
       partners.push(
         ...(await db.partner.findMany({
-          include: {
-            partnerType: true,
-            profile: true,
+          select: {
+            id: true,
+            displayName: true,
+            phone: true,
+            email: true,
+            status: true,
+            createdAt: true,
+            partnerType: { select: { code: true } },
+            profile: { select: { sellingChannel: true } },
             codes: { select: { code: true } },
           },
           orderBy: [{ status: "asc" }, { createdAt: "desc" }],
@@ -32,7 +44,10 @@ export default async function Page() {
       );
     } catch (error) {
       console.error("Failed to load admin partners", error);
-      schemaWarning = "Không thể tải danh sách đối tác. Nếu vừa triển khai bản mới, hãy chạy npm run db:migrate rồi npm run db:bootstrap.";
+      schemaWarning = getDatabaseErrorMessage(
+        error,
+        "Không thể tải danh sách đối tác. Nếu vừa triển khai bản mới, hãy chạy npm run db:migrate rồi npm run db:bootstrap.",
+      );
     }
   }
 
