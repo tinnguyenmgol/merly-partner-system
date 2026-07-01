@@ -14,7 +14,7 @@
 - API client, order import, webhooks, reconciliation logs.
 
 ## Commission engine
-- Rule evaluation, status transitions, manual review queue.
+- Rule evaluation, status transitions, manual review queue. (Initial referral_ctv ledger recalculation and reconciliation wait implemented.)
 
 ## Payout
 - Minimum payout, rollover, payout exports, paid marking.

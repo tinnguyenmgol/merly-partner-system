@@ -1,3 +1,4 @@
+import { recalculateOrderCommission } from "@/features/commissions";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { calculateEligibleProductRevenue } from "@/lib/money";
 import { HaravanClient } from "./haravan-client";
@@ -88,7 +89,7 @@ async function importOrder(order: HaravanOrder) {
   const externalOrderId = String(order.id);
   const code = orderCode(order);
 
-  await db.$transaction(async (tx) => {
+  const partnerOrderId = await db.$transaction(async (tx) => {
     const existing = await tx.partnerOrder.findUnique({ where: { externalOrderId } });
     const partnerOrder = await tx.partnerOrder.upsert({
       where: { externalOrderId },
@@ -150,7 +151,13 @@ async function importOrder(order: HaravanOrder) {
         },
       });
     }
+
+    return partnerOrder.id;
   });
+
+  if (partnerCode) {
+    await recalculateOrderCommission(partnerOrderId);
+  }
 
   return { attributed: Boolean(partnerCode), skipped: Boolean(discountCode && !partnerCode) };
 }
