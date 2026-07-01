@@ -23,20 +23,23 @@ Place the Merly source logo at `logo/merly-logo.png`. Codex should not add, edit
 ## Environment variables
 See `.env.example`, including `DATABASE_URL` and Haravan placeholders.
 
-## Database setup and seed
+## Database setup, migrations, and seed
 ```bash
-npm run prisma:migrate
+npm run prisma:migrate # local development only
+npm run prisma:migrate:deploy # production / CI deployment
 npm run prisma:seed
 ```
-The Prisma client generation flow is: `npm install`, `npx prisma generate`, then `npm run build`.
+The Prisma client generation flow is: `npm install`, `npx prisma generate`, then `npm run build`. The initial production migration is committed in `prisma/migrations`.
 
-Seed data includes partner types, default commission rules, partner levels, sample approved/pending partners, `MERLYCTV001`, and demo order/ledger rows.
+Seed data includes partner types with only `referral_ctv` enabled, default commission rules, partner levels, sample approved/pending partners, `MERLYCTV001`, and demo order/ledger rows. Do not run seed against production unless demo data is intended.
 
 
 ## Deployment
 - Configure `DATABASE_URL` in the hosting/runtime environment before using partner registration or admin review features.
+- Apply production migrations with `DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB?schema=public" npm run prisma:migrate:deploy`; keep real credentials out of git.
 - Admin partner management and public CTV registration require a live PostgreSQL database at runtime.
 - Production builds should not require database access; database-backed pages run dynamically and runtime features use `DATABASE_URL` when handling requests or server actions.
+- Health checks: `GET /api/health` for application liveness and `GET /api/health/database` for database readiness. See `docs/DEPLOYMENT.md`.
 
 ## Development commands
 ```bash
