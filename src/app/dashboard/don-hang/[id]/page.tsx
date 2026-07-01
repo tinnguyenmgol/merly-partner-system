@@ -1,1 +1,7 @@
-import {DashboardShell} from "@/components/layout/dashboard-shell";export default async function Page({params}:{params:Promise<{id:string}>}){const {id}=await params;return <DashboardShell><div className="card"><h1 className="text-3xl font-bold text-merly-900">Đơn hàng {id}</h1><p className="mt-3 text-stone-600">Chi tiết đơn hàng đối tác.</p></div></DashboardShell>}
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { requirePartnerSession } from "@/features/auth/partner-auth";
+import { db } from "@/lib/db";
+import { formatVnd } from "@/lib/money";
+import { notFound } from "next/navigation";
+export const dynamic = "force-dynamic";
+export default async function Page({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const session = await requirePartnerSession(); const order = await db.partnerOrder.findFirst({ where: { id, partnerId: session.account.partner.id }, include: { attributions: true, ledgerEntries: true } }); if (!order) notFound(); return <DashboardShell><div className="card"><h1 className="text-3xl font-bold text-merly-900">Đơn hàng {order.orderCode}</h1><dl className="mt-4 grid gap-3 md:grid-cols-2"><div><dt>Trạng thái</dt><dd className="font-semibold">{order.status}</dd></div><div><dt>Doanh thu hợp lệ</dt><dd className="font-semibold">{formatVnd(order.eligibleProductRevenue)}</dd></div><div><dt>Nguồn</dt><dd className="font-semibold">{order.attributions[0]?.source ?? "—"}</dd></div><div><dt>Hoa hồng</dt><dd className="font-semibold">{formatVnd(order.ledgerEntries.reduce((sum, row) => sum + row.amount, 0))}</dd></div></dl></div></DashboardShell>; }

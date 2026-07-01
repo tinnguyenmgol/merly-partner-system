@@ -1,0 +1,4 @@
+"use client";
+import { useActionState } from "react";
+import { setupPasswordAction } from "@/features/auth/actions";
+export function SetupPasswordForm({ token }: { token: string }) { const [state, action, pending] = useActionState(setupPasswordAction, { message: "" }); return <form action={action} className="mt-6 grid gap-4"><input type="hidden" name="token" value={token}/>{state.message ? <p className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">{state.message}</p> : null}<input className="input" name="password" type="password" minLength={8} placeholder="Mật khẩu mới (ít nhất 8 ký tự)" required/><input className="input" name="confirmPassword" type="password" minLength={8} placeholder="Nhập lại mật khẩu" required/><button className="btn-primary" disabled={pending}>{pending ? "Đang lưu..." : "Thiết lập mật khẩu"}</button></form> }

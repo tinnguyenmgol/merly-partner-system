@@ -1,0 +1,1 @@
+import { logoutAction } from "@/features/auth/actions";export default function Page(){return <form action={logoutAction} className="mx-auto mt-24 max-w-sm p-6"><button className="btn-primary w-full">Đăng xuất</button></form>}

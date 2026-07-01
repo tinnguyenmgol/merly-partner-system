@@ -222,7 +222,7 @@ export async function reviewPartnerRegistration(formData: FormData) {
   }
 
   await db.$transaction(async (tx) => {
-    const partner = await tx.partner.findUnique({ include: { profile: true, codes: true }, where: { id: partnerId } });
+    const partner = await tx.partner.findUnique({ include: { profile: true, codes: true, partnerType: true, account: true }, where: { id: partnerId } });
 
     if (!partner) {
       throw new Error("Partner not found.");
@@ -234,6 +234,10 @@ export async function reviewPartnerRegistration(formData: FormData) {
     await tx.partner.update({ where: { id: partnerId }, data: { status: nextStatus } });
 
     let createdCode: string | undefined;
+    if (nextStatus === "approved" && partner.partnerType.code === REFERRAL_PARTNER_TYPE && !partner.account) {
+      await tx.partnerAccount.create({ data: { partnerId, email: partner.email?.toLowerCase() ?? undefined, phone: partner.phone ?? undefined, status: "invited" } });
+    }
+
     if (nextStatus === "approved" && partner.codes.length === 0) {
       const code = await createUniquePartnerCode(tx, partnerId, requestedCode || buildDefaultPartnerCode(partner.profile?.fullName ?? partner.displayName, partner.phone ?? undefined));
       createdCode = code.code;
@@ -256,4 +260,26 @@ export async function reviewPartnerRegistration(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/partners");
   revalidatePath(`/admin/partners/${partnerId}`);
+}
+
+export async function partnerAccountAction(formData: FormData) {
+  const partnerId = readString(formData, "partnerId");
+  const action = readString(formData, "accountAction") as "generate" | "disable" | "enable";
+  if (!partnerId || !["generate", "disable", "enable"].includes(action)) throw new Error("Invalid partner account action.");
+  let accountId = "";
+  await db.$transaction(async (tx) => {
+    const partner = await tx.partner.findUnique({ include: { partnerType: true, account: true }, where: { id: partnerId } });
+    if (!partner || partner.partnerType.code !== "referral_ctv") throw new Error("Only referral_ctv accounts are supported.");
+    const account = partner.account ?? await tx.partnerAccount.create({ data: { partnerId, email: partner.email?.toLowerCase() ?? undefined, phone: partner.phone ?? undefined, status: "invited" } });
+    accountId = account.id;
+    if (action === "disable") await tx.partnerAccount.update({ where: { id: account.id }, data: { status: "disabled" } });
+    if (action === "enable") await tx.partnerAccount.update({ where: { id: account.id }, data: { status: account.passwordHash ? "active" : "invited" } });
+    await tx.adminAuditLog.create({ data: { actorId: ADMIN_ACTOR_ID, partnerId, action: `partner_account.${action}`, entityType: "PartnerAccount", entityId: account.id, afterJson: { action }, note: "Partner login account action" } });
+  });
+  revalidatePath(`/admin/partners/${partnerId}`);
+  if (action === "generate") {
+    const { generateSetupPasswordToken } = await import("@/features/auth/partner-auth");
+    const token = await generateSetupPasswordToken(accountId);
+    redirect(`/admin/partners/${partnerId}?setupToken=${token}`);
+  }
 }
