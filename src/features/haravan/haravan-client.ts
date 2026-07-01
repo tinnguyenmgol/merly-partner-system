@@ -1,0 +1,1 @@
+export class HaravanClient { constructor(private readonly accessToken = process.env.HARAVAN_ACCESS_TOKEN) {} async healthCheck() { return { ok: Boolean(this.accessToken), message: this.accessToken ? "Configured" : "Missing HARAVAN_ACCESS_TOKEN" }; } }

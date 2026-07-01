@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PartnerTypeCode {
+  referral_ctv
+  mini_corner
+  wholesale_agent
+  shop_referral
+  affiliate_creator
+}
+
+enum PartnerStatus {
+  pending
+  approved
+  rejected
+  suspended
+  inactive
+}
+
+enum CommissionStatus {
+  temporary
+  pending_delivery
+  reconciliation_waiting
+  payable
+  paid
+  rejected
+  on_hold
+}
+
+enum PayoutStatus {
+  draft
+  pending
+  paid
+  cancelled
+}
+
+enum OrderAttributionSource {
+  discount_code
+  referral_link
+  manual
+  imported
+}
+
+enum RiskFlagStatus {
+  open
+  reviewing
+  resolved
+  dismissed
+}
+
+model PartnerType {
+  id              String                  @id @default(cuid())
+  code            PartnerTypeCode         @unique
+  name            String
+  description     String?
+  enabled         Boolean                 @default(false)
+  partners        Partner[]
+  commissionRules PartnerCommissionRule[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+}
+
+model Partner {
+  id            String                    @id @default(cuid())
+  partnerTypeId String
+  status        PartnerStatus             @default(pending)
+  email         String?                   @unique
+  phone         String?                   @unique
+  displayName   String
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  partnerType   PartnerType               @relation(fields: [partnerTypeId], references: [id])
+  profile       PartnerProfile?
+  codes         PartnerCode[]
+  orders        PartnerOrder[]
+  ledgerEntries PartnerCommissionLedger[]
+  payouts       PartnerPayout[]
+  riskFlags     PartnerRiskFlag[]
+  auditLogs     AdminAuditLog[]
+}
+
+model PartnerProfile {
+  id                String  @id @default(cuid())
+  partnerId         String  @unique
+  fullName          String
+  zalo              String?
+  area              String?
+  sellingChannel    String?
+  socialLink        String?
+  experienceNote    String?
+  bankAccountHolder String?
+  bankName          String?
+  bankAccountNumber String?
+
+  partner           Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+}
+
+model PartnerCode {
+  id           String                   @id @default(cuid())
+  partnerId    String
+  code         String                   @unique
+  source       OrderAttributionSource   @default(discount_code)
+  active       Boolean                  @default(true)
+  createdAt    DateTime                 @default(now())
+
+  partner      Partner                  @relation(fields: [partnerId], references: [id])
+  attributions PartnerOrderAttribution[]
+}
+
+model PartnerLevel {
+  id          String             @id @default(cuid())
+  name        String             @unique
+  rank        Int
+  description String?
+  createdAt   DateTime           @default(now())
+
+  rules       PartnerLevelRule[]
+}
+
+model PartnerLevelRule {
+  id                       String       @id @default(cuid())
+  levelId                  String
+  successfulOrdersRequired Int
+  commissionRateBps        Int?
+  requiresAdminApproval    Boolean      @default(true)
+
+  level                    PartnerLevel @relation(fields: [levelId], references: [id])
+}
+
+model PartnerOrder {
+  id                     String                    @id @default(cuid())
+  partnerId              String?
+  externalOrderId        String?                   @unique
+  orderCode              String                    @unique
+  customerName           String?
+  status                 String                    @default("created")
+  eligibleProductRevenue Int                       @map("eligible_product_revenue")
+  discountAmount         Int                       @default(0)
+  shippingFee            Int                       @default(0)
+  surchargeAmount        Int                       @default(0)
+  nonProductFeeAmount    Int                       @default(0)
+  paidAt                 DateTime?
+  deliveredAt            DateTime?
+  cancelledAt            DateTime?
+  returnedAt             DateTime?
+  disputedAt             DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+
+  partner                Partner?                  @relation(fields: [partnerId], references: [id])
+  items                  PartnerOrderItem[]
+  attributions           PartnerOrderAttribution[]
+  ledgerEntries          PartnerCommissionLedger[]
+}
+
+model PartnerOrderItem {
+  id              String       @id @default(cuid())
+  orderId         String
+  sku             String?
+  productName     String
+  quantity        Int
+  unitPrice       Int
+  discountAmount  Int          @default(0)
+  eligibleRevenue Int
+
+  order           PartnerOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model PartnerOrderAttribution {
+  id            String                 @id @default(cuid())
+  orderId       String
+  partnerCodeId String?
+  source        OrderAttributionSource @default(discount_code)
+  value         String?
+  note          String?
+  createdAt     DateTime               @default(now())
+
+  order         PartnerOrder           @relation(fields: [orderId], references: [id])
+  partnerCode   PartnerCode?           @relation(fields: [partnerCodeId], references: [id])
+}
+
+model PartnerCommissionRule {
+  id                   String      @id @default(cuid())
+  partnerTypeId        String
+  name                 String
+  description          String?
+  minDiscountBps       Int?
+  maxDiscountBps       Int?
+  commissionRateBps    Int?
+  manualReviewRequired Boolean     @default(false)
+  unauthorizedDiscount Boolean     @default(false)
+  active               Boolean     @default(true)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  partnerType          PartnerType @relation(fields: [partnerTypeId], references: [id])
+}
+
+model PartnerCommissionLedger {
+  id                     String              @id @default(cuid())
+  partnerId              String
+  orderId                String?
+  status                 CommissionStatus    @default(temporary)
+  amount                 Int
+  commissionRateBps      Int?
+  eligibleProductRevenue Int                 @map("eligible_product_revenue")
+  reason                 String?
+  availableAt            DateTime?
+  paidAt                 DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  partner                Partner             @relation(fields: [partnerId], references: [id])
+  order                  PartnerOrder?       @relation(fields: [orderId], references: [id])
+  payoutItems            PartnerPayoutItem[]
+}
+
+model PartnerPayout {
+  id                  String              @id @default(cuid())
+  partnerId           String
+  status              PayoutStatus         @default(draft)
+  periodStart         DateTime
+  periodEnd           DateTime
+  amount              Int
+  minimumPayoutAmount Int                  @default(100000)
+  rolloverAmount      Int                  @default(0)
+  paidAt              DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  partner             Partner              @relation(fields: [partnerId], references: [id])
+  items               PartnerPayoutItem[]
+}
+
+model PartnerPayoutItem {
+  id       String                  @id @default(cuid())
+  payoutId String
+  ledgerId String
+  amount   Int
+
+  payout   PartnerPayout           @relation(fields: [payoutId], references: [id])
+  ledger   PartnerCommissionLedger @relation(fields: [ledgerId], references: [id])
+}
+
+model PartnerRiskFlag {
+  id        String         @id @default(cuid())
+  partnerId String
+  orderId   String?
+  status    RiskFlagStatus @default(open)
+  reason    String
+  detail    String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  partner   Partner        @relation(fields: [partnerId], references: [id])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  partnerId  String?
+  action     String
+  entityType String
+  entityId   String
+  beforeJson Json?
+  afterJson  Json?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  partner    Partner? @relation(fields: [partnerId], references: [id])
+}
+
+model HaravanSyncLog {
+  id         String    @id @default(cuid())
+  syncType   String
+  status     String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  message    String?
+  metadata   Json?
+}
