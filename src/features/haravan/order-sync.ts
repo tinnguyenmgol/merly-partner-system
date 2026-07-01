@@ -1,4 +1,4 @@
-import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
+import { ATTRIBUTION_SOURCES, VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { calculateEligibleProductRevenue } from "@/lib/money";
 import { HaravanClient } from "./haravan-client";
@@ -99,7 +99,7 @@ async function importOrder(order: HaravanOrder) {
 
   const result = await db.$transaction(async (tx) => {
     const existing = await tx.partnerOrder.findUnique({
-      include: { attributions: true },
+      include: { attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } } } },
       where: { externalOrderId },
     });
     const hasManualAttribution = existing?.attributions.some(

@@ -10,5 +10,7 @@ export const ATTRIBUTION_SOURCES = {
   IMPORTED: OrderAttributionSource.imported,
 } as const;
 
+export const VALID_ATTRIBUTION_SOURCES = Object.values(ATTRIBUTION_SOURCES);
+
 export type AttributionSource =
   (typeof ATTRIBUTION_SOURCES)[keyof typeof ATTRIBUTION_SOURCES];
