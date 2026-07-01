@@ -1,10 +1,25 @@
 import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { reviewPartnerRegistration } from "@/features/partners/intake";
-import { db } from "@/lib/db";
+import { db, hasDatabaseUrl } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  if (!hasDatabaseUrl()) {
+    return (
+      <DashboardShell admin>
+        <div className="card">
+          <h1 className="text-3xl font-bold text-merly-900">Chi tiết đối tác</h1>
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 font-medium text-amber-800">
+            Chưa cấu hình DATABASE_URL nên chưa thể tải hồ sơ CTV.
+          </p>
+        </div>
+      </DashboardShell>
+    );
+  }
   const partner = await db.partner.findUnique({
     include: { partnerType: true, profile: true, codes: true, auditLogs: { orderBy: { createdAt: "desc" }, take: 20 } },
     where: { id },
@@ -52,6 +67,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <button className="btn-primary" name="decision" type="submit" value="approve">Duyệt & kích hoạt</button>
                 <button className="btn-secondary" name="decision" type="submit" value="reject">Từ chối</button>
                 <button className="btn-secondary" name="decision" type="submit" value="suspend">Tạm khóa</button>
+                <button className="btn-secondary" name="decision" type="submit" value="reactivate">Kích hoạt lại</button>
               </div>
             </form>
           </div>

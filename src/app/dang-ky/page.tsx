@@ -35,6 +35,11 @@ export default async function Register({ searchParams }: { searchParams: Promise
             Vui lòng nhập họ tên, số điện thoại và đồng ý chính sách trước khi gửi.
           </div>
         )}
+        {status === "database-missing" && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+            Chưa cấu hình DATABASE_URL nên Merly chưa thể nhận đăng ký CTV.
+          </div>
+        )}
         <form action={submitPartnerRegistration} className="mt-6 grid gap-4 md:grid-cols-2">
           {fields.map(([name, label, required]) => (
             <label className="grid gap-2 text-sm" key={name}>

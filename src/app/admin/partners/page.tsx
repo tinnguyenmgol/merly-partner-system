@@ -1,8 +1,23 @@
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { db } from "@/lib/db";
+import { db, hasDatabaseUrl } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 
 export default async function Page() {
+  if (!hasDatabaseUrl()) {
+    return (
+      <DashboardShell admin>
+        <div className="card">
+          <h1 className="text-3xl font-bold text-merly-900">Quản lý đối tác</h1>
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 font-medium text-amber-800">
+            Chưa cấu hình DATABASE_URL nên chưa thể tải danh sách CTV.
+          </p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
   const partners = await db.partner.findMany({
     include: { partnerType: true, profile: true, codes: true },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],

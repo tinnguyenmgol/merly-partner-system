@@ -32,6 +32,12 @@ The Prisma client generation flow is: `npm install`, `npx prisma generate`, then
 
 Seed data includes partner types, default commission rules, partner levels, sample approved/pending partners, `MERLYCTV001`, and demo order/ledger rows.
 
+
+## Deployment
+- Configure `DATABASE_URL` in the hosting/runtime environment before using partner registration or admin review features.
+- Admin partner management and public CTV registration require a live PostgreSQL database at runtime.
+- Production builds should not require database access; database-backed pages run dynamically and runtime features use `DATABASE_URL` when handling requests or server actions.
+
 ## Development commands
 ```bash
 npm run lint

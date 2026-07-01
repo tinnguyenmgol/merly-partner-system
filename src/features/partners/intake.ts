@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { db, hasDatabaseUrl } from "@/lib/db";
 import type { PartnerStatus, Prisma } from "@prisma/client";
 
 const REFERRAL_PARTNER_TYPE = "referral_ctv" as const;
@@ -62,6 +62,10 @@ async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: 
 }
 
 export async function submitPartnerRegistration(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    redirect("/dang-ky?status=database-missing");
+  }
+
   const fullName = readString(formData, "fullName");
   const phone = readString(formData, "phone");
   const email = optionalString(formData, "email");
@@ -100,12 +104,16 @@ export async function submitPartnerRegistration(formData: FormData) {
 }
 
 export async function reviewPartnerRegistration(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    throw new Error("DATABASE_URL is required for partner review actions.");
+  }
+
   const partnerId = readString(formData, "partnerId");
-  const decision = readString(formData, "decision") as "approve" | "reject" | "suspend";
+  const decision = readString(formData, "decision") as "approve" | "reject" | "suspend" | "reactivate";
   const note = optionalString(formData, "note");
   const requestedCode = readString(formData, "partnerCode");
 
-  if (!partnerId || !["approve", "reject", "suspend"].includes(decision)) {
+  if (!partnerId || !["approve", "reject", "suspend", "reactivate"].includes(decision)) {
     throw new Error("Invalid partner review request.");
   }
 
@@ -116,7 +124,7 @@ export async function reviewPartnerRegistration(formData: FormData) {
       throw new Error("Partner not found.");
     }
 
-    const nextStatus: PartnerStatus = decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "suspended";
+    const nextStatus: PartnerStatus = decision === "approve" || decision === "reactivate" ? "approved" : decision === "reject" ? "rejected" : "suspended";
     const beforeJson = { status: partner.status, codes: partner.codes.map((code) => code.code) };
 
     await tx.partner.update({ where: { id: partnerId }, data: { status: nextStatus } });
