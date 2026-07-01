@@ -1,4 +1,5 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function Page() {
               },
             },
             attributions: {
+              where: { source: { in: VALID_ATTRIBUTION_SOURCES } },
               select: {
                 source: true,
                 value: true,

@@ -27,6 +27,6 @@
   }
 
   .input {
-    @apply rounded-xl border border-rose-100 bg-white px-4 py-3 outline-none focus:border-merly-500;
+    @apply rounded-xl border border-rose-100 bg-white px-4 py-3 outline-0 focus:border-merly-500;
   }
 }

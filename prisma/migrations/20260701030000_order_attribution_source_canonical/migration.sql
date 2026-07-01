@@ -1,6 +1,5 @@
 -- Canonicalize OrderAttributionSource values. Unattributed orders are represented
--- by PartnerOrder.partnerId = NULL and no PartnerOrderAttribution row; `none` is
--- not a persisted enum value.
+-- by PartnerOrder.partnerId = NULL and no PartnerOrderAttribution row.
 ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'discount_code';
 ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'referral_link';
 ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'affiliate_link';
@@ -12,7 +11,16 @@ ALTER TYPE "OrderAttributionSource" ADD VALUE IF NOT EXISTS 'imported';
 ALTER TABLE "PartnerOrderAttribution" ALTER COLUMN "source" DROP DEFAULT;
 ALTER TABLE "PartnerCode" ALTER COLUMN "source" DROP DEFAULT;
 
-DELETE FROM "PartnerOrderAttribution" WHERE "source"::text = 'none';
+DELETE FROM "PartnerOrderAttribution"
+WHERE "source"::text NOT IN (
+  'discount_code',
+  'referral_link',
+  'affiliate_link',
+  'shop_discount_code',
+  'manual',
+  'order_request',
+  'imported'
+);
 UPDATE "PartnerOrder" po
 SET "partnerId" = NULL
 WHERE NOT EXISTS (
