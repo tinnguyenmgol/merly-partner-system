@@ -1,0 +1,3 @@
+import {DashboardShell} from "@/components/layout/dashboard-shell";import {StatCard} from "@/components/ui/stat-card";
+const stats=['Tổng đối tác','Chờ duyệt','Referral CTV hoạt động','Doanh thu đối tác tháng này','Hoa hồng phải trả','Đơn từ đối tác','Cờ rủi ro','Sync Haravan gần nhất'];
+export default function Admin(){return <DashboardShell admin><h1 className="text-3xl font-bold text-merly-900">Merly Partner Admin</h1><div className="mt-6 grid gap-4 md:grid-cols-4">{stats.map(s=><StatCard key={s} label={s} value={s.includes('Sync')?'Chưa cấu hình':'0'} hint="Dữ liệu mẫu"/>)}</div></DashboardShell>}
