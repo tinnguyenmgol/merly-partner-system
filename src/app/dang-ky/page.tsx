@@ -1,18 +1,6 @@
 import { MerlyLogo } from "@/components/merly-logo";
-import { submitPartnerRegistration } from "@/features/partners/intake";
+import { RegistrationForm } from "./registration-form";
 
-const fields = [
-  ["fullName", "Họ và tên", true],
-  ["phone", "Số điện thoại", true],
-  ["email", "Email", false],
-  ["zalo", "Zalo", false],
-  ["area", "Khu vực / tỉnh thành", false],
-  ["sellingChannel", "Kênh bán hàng", false],
-  ["socialLink", "Link Facebook/TikTok/Shopee (nếu có)", false],
-  ["bankAccountHolder", "Chủ tài khoản ngân hàng", false],
-  ["bankName", "Tên ngân hàng", false],
-  ["bankAccountNumber", "Số tài khoản ngân hàng", false],
-] as const;
 
 export default async function Register({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { status } = await searchParams;
@@ -40,24 +28,7 @@ export default async function Register({ searchParams }: { searchParams: Promise
             Chưa cấu hình DATABASE_URL nên Merly chưa thể nhận đăng ký CTV.
           </div>
         )}
-        <form action={submitPartnerRegistration} className="mt-6 grid gap-4 md:grid-cols-2">
-          {fields.map(([name, label, required]) => (
-            <label className="grid gap-2 text-sm" key={name}>
-              {label}
-              <input className="input" name={name} placeholder={label} required={required} />
-            </label>
-          ))}
-          <label className="grid gap-2 text-sm md:col-span-2">
-            Kinh nghiệm / ghi chú
-            <textarea className="input min-h-28" name="experienceNote" />
-          </label>
-          <label className="flex gap-3 text-sm md:col-span-2">
-            <input name="acceptedPolicy" required type="checkbox" /> Tôi đồng ý chính sách CTV Merly và quy định đối soát hoa hồng.
-          </label>
-          <button className="btn-primary md:col-span-2" type="submit">
-            Gửi đăng ký
-          </button>
-        </form>
+        <RegistrationForm />
       </div>
     </main>
   );

@@ -3,10 +3,86 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, hasDatabaseUrl } from "@/lib/db";
-import type { PartnerStatus, Prisma } from "@prisma/client";
+import { Prisma, type PartnerStatus } from "@prisma/client";
 
 const REFERRAL_PARTNER_TYPE = "referral_ctv" as const;
 const ADMIN_ACTOR_ID = "admin-placeholder";
+
+const DUPLICATE_PHONE_MESSAGE = "Số điện thoại này đã được đăng ký trong hệ thống CTV Merly.";
+const DUPLICATE_EMAIL_MESSAGE = "Email này đã được đăng ký trong hệ thống CTV Merly.";
+const DUPLICATE_GENERIC_MESSAGE = "Thông tin đăng ký đã tồn tại. Vui lòng kiểm tra lại số điện thoại hoặc email.";
+
+export type PartnerRegistrationState = {
+  message?: string;
+  fieldErrors?: Partial<Record<string, string>>;
+  values: Record<string, string>;
+};
+
+function readValues(formData: FormData) {
+  const values: Record<string, string> = {};
+
+  for (const key of [
+    "fullName",
+    "phone",
+    "email",
+    "zalo",
+    "area",
+    "sellingChannel",
+    "socialLink",
+    "experienceNote",
+    "bankAccountHolder",
+    "bankName",
+    "bankAccountNumber",
+  ]) {
+    values[key] = readString(formData, key);
+  }
+
+  if (formData.get("acceptedPolicy") === "on") {
+    values.acceptedPolicy = "on";
+  }
+
+  return values;
+}
+
+function normalizePartnerPhone(input: string) {
+  const compactPhone = input.trim().replace(/[\s.-]+/g, "");
+
+  if (/^\+84[1-9]\d*$/.test(compactPhone)) {
+    return `0${compactPhone.slice(3)}`;
+  }
+
+  if (/^84[1-9]\d*$/.test(compactPhone) && compactPhone.length >= 10 && compactPhone.length <= 11) {
+    return `0${compactPhone.slice(2)}`;
+  }
+
+  return compactPhone;
+}
+
+function normalizePartnerEmail(input?: string) {
+  return input?.trim().toLowerCase() || undefined;
+}
+
+function duplicateRegistrationState(message: string, field: "phone" | "email", values: Record<string, string>): PartnerRegistrationState {
+  return { message, fieldErrors: { [field]: message }, values };
+}
+
+function prismaDuplicateRegistrationState(error: unknown, values: Record<string, string>): PartnerRegistrationState | undefined {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return undefined;
+  }
+
+  const target = Array.isArray(error.meta?.target) ? error.meta.target.map(String) : [];
+
+  if (target.includes("phone")) {
+    return duplicateRegistrationState(DUPLICATE_PHONE_MESSAGE, "phone", values);
+  }
+
+  if (target.includes("email")) {
+    return duplicateRegistrationState(DUPLICATE_EMAIL_MESSAGE, "email", values);
+  }
+
+  return { message: DUPLICATE_GENERIC_MESSAGE, values };
+}
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -61,44 +137,71 @@ async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: 
   return tx.partnerCode.create({ data: { partnerId, code: `MERLY${partnerId.slice(-10).toUpperCase()}`, source: "affiliate_link", codePurpose: "affiliate_tracking" } });
 }
 
-export async function submitPartnerRegistration(formData: FormData) {
+export async function submitPartnerRegistration(_previousState: PartnerRegistrationState, formData: FormData): Promise<PartnerRegistrationState> {
+  const values = readValues(formData);
+
   if (!hasDatabaseUrl()) {
     redirect("/dang-ky?status=database-missing");
   }
 
-  const fullName = readString(formData, "fullName");
-  const phone = readString(formData, "phone");
-  const email = optionalString(formData, "email");
+  const fullName = values.fullName;
+  const phone = normalizePartnerPhone(values.phone);
+  const email = normalizePartnerEmail(values.email);
   const acceptedPolicy = formData.get("acceptedPolicy") === "on";
 
   if (!fullName || !phone || !acceptedPolicy) {
     redirect("/dang-ky?status=missing-required");
   }
 
+  const existingPartner = await db.partner.findFirst({
+    where: {
+      OR: [{ phone }, ...(email ? [{ email }] : [])],
+    },
+    select: { email: true, phone: true },
+  });
+
+  if (existingPartner?.phone === phone) {
+    return duplicateRegistrationState(DUPLICATE_PHONE_MESSAGE, "phone", values);
+  }
+
+  if (email && existingPartner?.email === email) {
+    return duplicateRegistrationState(DUPLICATE_EMAIL_MESSAGE, "email", values);
+  }
+
   const partnerType = await ensureReferralPartnerType();
 
-  await db.partner.create({
-    data: {
-      partnerTypeId: partnerType.id,
-      status: "pending",
-      email,
-      phone,
-      displayName: fullName,
-      profile: {
-        create: {
-          fullName,
-          zalo: optionalString(formData, "zalo"),
-          area: optionalString(formData, "area"),
-          sellingChannel: optionalString(formData, "sellingChannel"),
-          socialLink: optionalString(formData, "socialLink"),
-          experienceNote: optionalString(formData, "experienceNote"),
-          bankAccountHolder: optionalString(formData, "bankAccountHolder"),
-          bankName: optionalString(formData, "bankName"),
-          bankAccountNumber: optionalString(formData, "bankAccountNumber"),
+  try {
+    await db.partner.create({
+      data: {
+        partnerTypeId: partnerType.id,
+        status: "pending",
+        email,
+        phone,
+        displayName: fullName,
+        profile: {
+          create: {
+            fullName,
+            zalo: optionalString(formData, "zalo"),
+            area: optionalString(formData, "area"),
+            sellingChannel: optionalString(formData, "sellingChannel"),
+            socialLink: optionalString(formData, "socialLink"),
+            experienceNote: optionalString(formData, "experienceNote"),
+            bankAccountHolder: optionalString(formData, "bankAccountHolder"),
+            bankName: optionalString(formData, "bankName"),
+            bankAccountNumber: optionalString(formData, "bankAccountNumber"),
+          },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    const duplicateState = prismaDuplicateRegistrationState(error, values);
+
+    if (duplicateState) {
+      return duplicateState;
+    }
+
+    throw error;
+  }
 
   redirect("/dang-ky?status=success");
 }
