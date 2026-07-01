@@ -137,7 +137,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Se
 }
 
 async function loadDashboardData(orderRangeWhere: Prisma.PartnerOrderWhereInput) {
-  const [lastSync, lastRecalc, partnerCounts, typeCounts, accountCounts, recentPartners, totalOrders, attributedOrders, sourceGroups, blockedAttributedOrders, validRevenueAgg, blockedRevenueAgg, ledgerGroups, staleProblemLedgers, recentOrders, failedSyncLogs] = await Promise.all([
+  const [lastSync, lastRecalc, partnerCounts, typeCounts, accountCounts, recentPartners, totalOrders, attributedOrders, sourceGroups, blockedAttributedOrders, validRevenueAgg, blockedRevenueAgg, ledgerGroups, staleProblemLedgers, recentOrders, failedSyncLogs, pendingOrderRequestCount, latestPendingOrderRequests] = await Promise.all([
     db.haravanSyncLog.findFirst({ orderBy: { startedAt: "desc" }, select: { status: true, startedAt: true, finishedAt: true, metadata: true, message: true } }),
     db.partnerCommissionLedger.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
     db.partner.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -155,6 +155,8 @@ async function loadDashboardData(orderRangeWhere: Prisma.PartnerOrderWhereInput)
     db.partnerCommissionLedger.findMany({ where: { status: { in: ACTIVE_LEDGER_STATUSES }, order: blockedOrderWhere }, select: { id: true, order: { select: { orderCode: true } }, partner: { select: { displayName: true } } }, take: 10 }),
     db.partnerOrder.findMany({ where: { partnerId: { not: null } }, select: { id: true, orderCode: true, eligibleProductRevenue: true, status: true, cancelledAt: true, returnedAt: true, disputedAt: true, createdAt: true, partner: { select: { id: true, displayName: true, partnerType: { select: { code: true } } } }, attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } }, select: { source: true, value: true, partnerCode: { select: { code: true } } }, orderBy: { createdAt: "desc" }, take: 1 }, ledgerEntries: { select: { status: true }, take: 1 } }, orderBy: { createdAt: "desc" }, take: 20 }),
     db.haravanSyncLog.findMany({ where: { status: { not: "success" } }, select: { id: true, status: true, message: true, startedAt: true }, orderBy: { startedAt: "desc" }, take: 10 }),
+    db.partnerOrderRequest.count({ where: { status: "pending" } }),
+    db.partnerOrderRequest.findMany({ where: { status: "pending" }, select: { id: true, orderCode: true, createdAt: true, partner: { select: { displayName: true } } }, orderBy: { createdAt: "desc" }, take: 5 }),
   ]);
   const types = await db.partnerType.findMany({ select: { id: true, code: true } });
   const countStatus = (s: PartnerStatus) => partnerCounts.find(c => c.status === s)?._count._all ?? 0;
@@ -169,6 +171,7 @@ async function loadDashboardData(orderRangeWhere: Prisma.PartnerOrderWhereInput)
     orderSummary: { "Total synced": totalOrders, "Attributed": attributedOrders, "Unattributed": totalOrders - attributedOrders, "Attribution rate": pct(attributedOrders, totalOrders), "affiliate_link": sourceGroups.find(g => g.source === "affiliate_link")?._count._all ?? 0, "shop/discount_code": sourceGroups.filter(g => ["shop_discount_code", "discount_code"].includes(g.source)).reduce((s, g) => s + g._count._all, 0), "manual/order_request": sourceGroups.filter(g => ["manual", "order_request"].includes(g.source)).reduce((s, g) => s + g._count._all, 0), "Cancelled/blocked": blockedAttributedOrders },
     financialSummary: { "Valid revenue": validRevenueAgg._sum.eligibleProductRevenue ?? 0, "Blocked revenue": blockedRevenueAgg._sum.eligibleProductRevenue ?? 0, "Temporary commission": ledgerSum("temporary"), "Reconciliation waiting": ledgerSum("reconciliation_waiting"), "Payable commission": ledgerSum("payable"), "Paid commission": ledgerSum("paid"), "Rejected/on_hold": ledgerSum("rejected") + ledgerSum("on_hold"), "Stale/problem ledgers": staleProblemLedgerCount },
     actions: [
+      ["Yêu cầu gắn đơn chờ xử lý", `${pendingOrderRequestCount} yêu cầu - mới nhất: ${latestPendingOrderRequests.map(r => `${r.partner.displayName}${r.orderCode ? ` / ${r.orderCode}` : ""}`).join(", ") || "không có"}`, <Link className="link" href="/admin/order-requests" key="order-requests">Mở</Link>],
       ...recentPartners.filter(p => p.status === "pending").slice(0, 10).map(p => ["Pending partner approval", p.displayName, <Link className="link" href={`/admin/partners/${p.id}`} key={p.id}>Mở</Link>]),
       ...recentPartners.filter(p => p.status === "approved" && p.account?.status !== "active").slice(0, 10).map(p => ["Approved partner without active login", p.displayName, <Link className="link" href={`/admin/partners/${p.id}`} key={p.id}>Thiết lập</Link>]),
       ...staleProblemLedgers.map(l => ["Cancelled order with active ledger", `${l.partner.displayName} / ${l.order?.orderCode ?? "Manual"}`, <Link className="link" href="/admin/commissions" key={l.id}>Đối soát</Link>]),

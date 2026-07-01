@@ -59,6 +59,14 @@ enum RiskFlagStatus {
   dismissed
 }
 
+enum PartnerOrderRequestStatus {
+  pending
+  matched
+  approved
+  rejected
+  cancelled
+}
+
 model PartnerType {
   id              String                  @id @default(cuid())
   code            PartnerTypeCode         @unique
@@ -91,6 +99,7 @@ model Partner {
   auditLogs     AdminAuditLog[]
   clicks        PartnerClick[]
   statementTokens PartnerStatementToken[]
+  orderRequests PartnerOrderRequest[]
   account PartnerAccount?
 }
 
@@ -196,6 +205,32 @@ model PartnerOrder {
   items         PartnerOrderItem[]
   attributions  PartnerOrderAttribution[]
   ledgerEntries PartnerCommissionLedger[]
+  orderRequests PartnerOrderRequest[]
+}
+
+model PartnerOrderRequest {
+  id             String                    @id @default(cuid())
+  partnerId      String
+  status         PartnerOrderRequestStatus @default(pending)
+  orderCode      String?
+  contactHint    String?
+  expectedAmount Int?
+  note           String?
+  matchedOrderId String?
+  adminNote      String?
+  rejectReason   String?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  partner      Partner       @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  matchedOrder PartnerOrder?  @relation(fields: [matchedOrderId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([orderCode])
+  @@index([matchedOrderId])
 }
 
 model PartnerOrderItem {
