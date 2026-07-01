@@ -1,1 +1,1 @@
-export const featureStatus = "foundation-placeholder";
+export const phaseOneSupportedPartnerType = "referral_ctv";

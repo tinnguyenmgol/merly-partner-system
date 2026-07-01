@@ -220,6 +220,8 @@ model PartnerCommissionLedger {
   partner                Partner             @relation(fields: [partnerId], references: [id])
   order                  PartnerOrder?       @relation(fields: [orderId], references: [id])
   payoutItems            PartnerPayoutItem[]
+
+  @@unique([orderId])
 }
 
 model PartnerPayout {
@@ -247,6 +249,8 @@ model PartnerPayoutItem {
 
   payout   PartnerPayout           @relation(fields: [payoutId], references: [id])
   ledger   PartnerCommissionLedger @relation(fields: [ledgerId], references: [id])
+
+  @@unique([ledgerId])
 }
 
 model PartnerRiskFlag {
