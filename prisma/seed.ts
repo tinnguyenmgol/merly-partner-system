@@ -84,7 +84,7 @@ async function main() {
   await prisma.partnerCode.upsert({
     where: { code: "MERLYCTV001" },
     update: {},
-    create: { partnerId: approved.id, code: "MERLYCTV001" },
+    create: { partnerId: approved.id, code: "MERLYCTV001", source: "affiliate_link", codePurpose: "affiliate_tracking" },
   });
 
   await prisma.partner.upsert({

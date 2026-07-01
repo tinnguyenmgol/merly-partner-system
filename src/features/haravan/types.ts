@@ -23,7 +23,11 @@ export type HaravanOrder = {
   order_number?: string | number | null;
   name?: string | null;
   order_code?: string | null;
-  customer?: { first_name?: string | null; last_name?: string | null; name?: string | null } | null;
+  customer?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    name?: string | null;
+  } | null;
   financial_status?: string | null;
   fulfillment_status?: string | null;
   cancelled_at?: string | null;
@@ -37,6 +41,20 @@ export type HaravanOrder = {
   total_line_items_price?: HaravanMoney;
   line_items?: HaravanLineItem[];
   discount_codes?: HaravanDiscountCode[];
+  attributes?: Array<{
+    name?: string | null;
+    key?: string | null;
+    value?: string | null;
+  }>;
+  note_attributes?: Array<{
+    name?: string | null;
+    key?: string | null;
+    value?: string | null;
+  }>;
+  landing_site?: string | null;
+  landing_site_ref?: string | null;
+  tags?: string | null;
+  note?: string | null;
 };
 
 export type HaravanSyncResult = {

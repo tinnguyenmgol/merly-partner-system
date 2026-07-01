@@ -9,3 +9,15 @@ Required environment variables are `HARAVAN_ACCESS_TOKEN` and optionally `HARAVA
 After an attributed referral_ctv order is imported, the commission ledger can be recalculated idempotently. Paid delivered orders wait 7 days before becoming payable; cancelled, returned, disputed, or refused orders are rejected; deep discounts above 10% are put on hold for manual review.
 
 Not implemented yet: webhooks, cron automation, payout execution, Mini Corner, wholesale/dealer workflows, and automated reconciliation jobs. Future webhooks must validate `HARAVAN_WEBHOOK_SECRET` before importing or updating orders.
+
+## Order attribution priority
+
+Haravan import keeps existing admin/manual attribution first and does not overwrite it. New attribution priority is:
+
+1. Existing manual attribution remains unchanged.
+2. Explicit affiliate data in `attributes` / `note_attributes` (`merly_partner_code`) attributes to `referral_ctv`.
+3. Affiliate query params in `landing_site` / `landing_site_ref` (`ref`, `aff`, `ctv`, `partner`) attribute to `referral_ctv`.
+4. Discount codes matching active `shop_referral` codes attribute to `shop_referral`.
+5. Ambiguous or multiple matches stay unattributed for manual review.
+
+Discount code attribution is not the default for individual `referral_ctv`; affiliate links, manual attribution, and future order requests are the supported individual CTV flows.

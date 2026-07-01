@@ -54,11 +54,11 @@ async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: 
     const existing = await tx.partnerCode.findUnique({ where: { code } });
 
     if (!existing) {
-      return tx.partnerCode.create({ data: { partnerId, code } });
+      return tx.partnerCode.create({ data: { partnerId, code, source: "affiliate_link", codePurpose: "affiliate_tracking" } });
     }
   }
 
-  return tx.partnerCode.create({ data: { partnerId, code: `MERLY${partnerId.slice(-10).toUpperCase()}` } });
+  return tx.partnerCode.create({ data: { partnerId, code: `MERLY${partnerId.slice(-10).toUpperCase()}`, source: "affiliate_link", codePurpose: "affiliate_tracking" } });
 }
 
 export async function submitPartnerRegistration(formData: FormData) {
