@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CommissionStatus, PartnerStatus, PartnerTypeCode, Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ACTIVE_LEDGER_STATUSES, getOrderCommissionBlockReason, isOrderCommissionEligible } from "@/features/commissions";
+import { parseAttributionSourceFilter } from "@/features/partners/attribution-source-filter";
 import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 import { formatVnd } from "@/lib/money";
@@ -9,7 +10,7 @@ import { formatVnd } from "@/lib/money";
 export const dynamic = "force-dynamic";
 
 type RangeKey = "today" | "7d" | "30d" | "month" | "custom";
-type SearchParams = { range?: RangeKey; start?: string; end?: string };
+type SearchParams = { range?: RangeKey; start?: string; end?: string; source?: string };
 
 const BLOCKED_STATUS_VALUES = [
   "cancelled", "canceled", "voided", "void", "closed_cancelled", "returned", "return", "partially_returned",
@@ -68,6 +69,16 @@ function getAttributionDisplay(order: AttributionDisplayOrder) {
   return order.attributions?.[0]?.source ?? "-";
 }
 
+function getSourceFilteredOrderWhere(orderRangeWhere: Prisma.PartnerOrderWhereInput, filter: ReturnType<typeof parseAttributionSourceFilter>): Prisma.PartnerOrderWhereInput {
+  if (filter.kind === "unattributed") {
+    return { ...orderRangeWhere, partnerId: null, attributions: { none: {} } };
+  }
+  if (filter.kind === "source") {
+    return { ...orderRangeWhere, attributions: { some: { source: filter.source } } };
+  }
+  return orderRangeWhere;
+}
+
 function metadataNumber(metadata: Prisma.JsonValue | null | undefined, keys: string[]) {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return 0;
   for (const key of keys) {
@@ -80,7 +91,13 @@ function metadataNumber(metadata: Prisma.JsonValue | null | undefined, keys: str
 export default async function Admin({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const range = getDateRange(params);
-  const orderRangeWhere = { createdAt: { gte: range.start, lt: range.end } };
+  const rawSource = params.source;
+  const sourceFilter = parseAttributionSourceFilter(rawSource);
+  console.warn("[admin-dashboard] attribution source filter", {
+    rawSource,
+    parsedKind: sourceFilter.kind,
+  });
+  const orderRangeWhere = getSourceFilteredOrderWhere({ createdAt: { gte: range.start, lt: range.end } }, sourceFilter);
   let warning: string | null = null;
   let data: Awaited<ReturnType<typeof loadDashboardData>> | null = null;
 
@@ -103,7 +120,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Se
       <div className="flex flex-wrap gap-2"><Link className="btn-secondary" href="/admin/settings/haravan">Sync Haravan now</Link><Link className="btn-secondary" href="/admin/commissions">Recalculate commissions</Link><Link className="btn-secondary" href="/admin/partners?status=pending">View pending partners</Link><Link className="btn-secondary" href="/admin/commissions">View commission issues</Link></div>
     </div>
 
-    <form className="card flex flex-wrap items-end gap-3" action="/admin"><label className="grid gap-1 text-sm font-medium">Khoảng ngày<select className="input" name="range" defaultValue={range.key}><option value="today">Today</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="month">This month</option><option value="custom">Custom</option></select></label><label className="grid gap-1 text-sm font-medium">Start<input className="input" name="start" type="date" defaultValue={params.start ?? ""}/></label><label className="grid gap-1 text-sm font-medium">End<input className="input" name="end" type="date" defaultValue={params.end ?? ""}/></label><button className="btn-secondary" type="submit">Lọc</button><p className="text-sm text-stone-500">Đang xem: {range.label} theo ngày tạo đơn.</p></form>
+    <form className="card flex flex-wrap items-end gap-3" action="/admin"><label className="grid gap-1 text-sm font-medium">Khoảng ngày<select className="input" name="range" defaultValue={range.key}><option value="today">Today</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="month">This month</option><option value="custom">Custom</option></select></label><label className="grid gap-1 text-sm font-medium">Start<input className="input" name="start" type="date" defaultValue={params.start ?? ""}/></label><label className="grid gap-1 text-sm font-medium">End<input className="input" name="end" type="date" defaultValue={params.end ?? ""}/></label><button className="btn-secondary" type="submit">Lọc</button><label className="grid gap-1 text-sm font-medium">Nguồn<select className="input" name="source" defaultValue={sourceFilter.kind === "source" ? sourceFilter.source : sourceFilter.kind === "unattributed" ? "unattributed" : "all"}><option value="all">Tất cả</option><option value="unattributed">Chưa gắn CTV/đối tác</option>{VALID_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{source}</option>)}</select></label><p className="text-sm text-stone-500">Đang xem: {range.label} theo ngày tạo đơn.</p></form>
 
     <section className="grid gap-4 lg:grid-cols-4"><StatusCard label="Đồng bộ Haravan gần nhất" value={fmtDateTime(data?.lastSync?.finishedAt ?? data?.lastSync?.startedAt)} tone={staleSync || lastSyncFailed ? "warn" : "ok"} hint={`Kết quả: ${data?.lastSync?.status ?? "chưa có"}. Imported/updated: ${metadataNumber(data?.lastSync?.metadata, ["ordersImported", "ordersUpdated", "imported", "updated"])}. Attributed: ${metadataNumber(data?.lastSync?.metadata, ["ordersAttributed", "attributed"])}. Hủy/hoàn cập nhật: ${metadataNumber(data?.lastSync?.metadata, ["cancelledReturnedUpdated", "cancelledUpdated", "blockedUpdated"])}.`}/><StatusCard label="Đối soát hoa hồng gần nhất" value={fmtDateTime(data?.lastRecalcAt)} tone={staleRecalc ? "warn" : "ok"} hint="Dựa trên ledger được cập nhật gần nhất."/><StatusCard label="Cần đồng bộ lại" value={staleSync ? "Có" : "Không"} tone={staleSync ? "warn" : "ok"} hint="Cảnh báo nếu sync cuối quá 24h."/><StatusCard label="Có lỗi cần xử lý" value={lastSyncFailed || hasCommissionIssues ? "Có" : "Không"} tone={lastSyncFailed || hasCommissionIssues ? "warn" : "ok"} hint={hasCommissionIssues ? "Có hoa hồng cần đối soát lại: đơn đã hủy/hoàn nhưng ledger còn hoạt động." : "Không phát hiện ledger lỗi."}/></section>
 

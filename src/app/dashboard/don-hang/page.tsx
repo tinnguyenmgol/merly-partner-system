@@ -2,6 +2,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { displayOrderCommissionStatus } from "@/features/commissions";
 import { formatVnd } from "@/lib/money";
+import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 export const dynamic = "force-dynamic";
 export default async function Page() {
   const s = await requirePartnerSession();
@@ -9,7 +10,7 @@ export default async function Page() {
   const orders = await db.partnerOrder.findMany({
     where: { partnerId: s.account.partner.id },
     orderBy: { createdAt: "desc" },
-    include: { attributions: true },
+    include: { attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } } } },
   });
   return (
     <DashboardShell>
