@@ -1,0 +1,1 @@
+import {DashboardShell} from "@/components/layout/dashboard-shell";export default function Page(){return <DashboardShell admin><div className="card"><h1 className="text-3xl font-bold text-merly-900">logs</h1><p className="mt-3 text-stone-600">Admin shell cho quản lý Merly Partner.</p></div></DashboardShell>}

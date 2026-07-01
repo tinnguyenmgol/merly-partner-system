@@ -1,0 +1,1 @@
+import {DashboardShell} from "@/components/layout/dashboard-shell";export default function Page(){return <DashboardShell><div className="card"><h1 className="text-3xl font-bold text-merly-900">hoa-hong</h1><p className="mt-3 text-stone-600">Trang shell được bảo vệ trong phiên bản sau.</p></div></DashboardShell>}
