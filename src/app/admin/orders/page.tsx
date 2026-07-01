@@ -4,16 +4,30 @@ import { db, hasDatabaseUrl } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const orders = hasDatabaseUrl()
-    ? await db.partnerOrder.findMany({
-        include: {
-          partner: { include: { partnerType: true } },
-          attributions: { include: { partnerCode: true }, orderBy: { createdAt: "desc" }, take: 1 },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-      })
-    : [];
+  let schemaWarning: string | null = null;
+  const orders = [];
+
+  if (hasDatabaseUrl()) {
+    try {
+      orders.push(
+        ...(await db.partnerOrder.findMany({
+          include: {
+            partner: { include: { partnerType: true } },
+            attributions: {
+              include: { partnerCode: { select: { code: true } } },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        })),
+      );
+    } catch (error) {
+      console.error("Failed to load admin orders", error);
+      schemaWarning = "Không thể tải đơn hàng. Nếu schema database đang cũ, hãy chạy npm run db:migrate rồi npm run db:bootstrap.";
+    }
+  }
 
   return (
     <DashboardShell admin>
@@ -21,6 +35,7 @@ export default async function Page() {
         <h1 className="text-3xl font-bold text-merly-900">Đơn hàng đối tác</h1>
         <p className="mt-3 text-stone-600">Theo dõi gắn đối tác theo affiliate link, shop discount code, manual hoặc order request.</p>
         {!hasDatabaseUrl() ? <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">DATABASE_URL chưa được cấu hình.</p> : null}
+        {schemaWarning ? <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{schemaWarning}</p> : null}
         <div className="mt-6 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-stone-500">

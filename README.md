@@ -29,6 +29,15 @@ npm run prisma:migrate # local development only
 npm run prisma:migrate:deploy # production / CI deployment
 npm run prisma:seed
 ```
+
+
+After deploying application code that includes affiliate tracking schema changes, run the long-term Prisma migration/bootstrap commands instead of relying on manual Supabase SQL hotfixes:
+
+```bash
+npm run db:migrate
+npm run db:bootstrap
+```
+
 The Prisma client generation flow is: `npm install`, `npx prisma generate`, then `npm run build`. The initial production migration is committed in `prisma/migrations`.
 
 Seed data includes partner types with only `referral_ctv` enabled, default commission rules, partner levels, sample approved/pending partners, `MERLYCTV001`, and demo order/ledger rows. Do not run seed against production unless demo data is intended.
