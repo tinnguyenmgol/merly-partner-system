@@ -11,6 +11,7 @@ import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sourc
 
 export const RECONCILIATION_WAIT_DAYS = 7;
 export const DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS = 1000;
+export const DEFAULT_SHOP_REFERRAL_COMMISSION_RATE_BPS = 0;
 export const MINIMUM_PAYOUT_AMOUNT_VND = 100_000;
 const BASIS_POINTS = 10_000;
 
@@ -18,6 +19,10 @@ export const COMMISSIONABLE_REFERRAL_CTV_SOURCES: OrderAttributionSource[] = [
   "affiliate_link",
   "manual",
   "order_request",
+];
+export const COMMISSIONABLE_SHOP_REFERRAL_SOURCES: OrderAttributionSource[] = [
+  "shop_discount_code",
+  "discount_code",
 ];
 export const ACTIVE_LEDGER_STATUSES: CommissionStatus[] = [
   "temporary",
@@ -88,14 +93,6 @@ function addDays(date: Date, days: number) {
 function lower(value?: string | null) {
   return value?.trim().toLowerCase() ?? "";
 }
-function blockedAmount(order: Pick<PartnerOrder, "eligibleProductRevenue">) {
-  return Math.floor(
-    (Math.max(order.eligibleProductRevenue, 0) *
-      DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS) /
-      BASIS_POINTS,
-  );
-}
-
 export function isOrderCancelledOrReturned(
   order: Pick<
     PartnerOrder,
@@ -180,9 +177,11 @@ export function summarizeOrders(orders: CommissionOrderSnapshot[]) {
 export function decideCommissionForOrder(
   order: CommissionOrderSnapshot,
   now = new Date(),
+  commissionRateBps = DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS,
 ): CommissionDecision {
   const base = Math.max(order.eligibleProductRevenue, 0);
-  const amount = blockedAmount(order);
+  const rate = Math.max(commissionRateBps, 0);
+  const amount = Math.floor((base * rate) / BASIS_POINTS);
   if (!order.partnerId)
     return {
       status: "rejected",
@@ -196,7 +195,7 @@ export function decideCommissionForOrder(
     return {
       status: "rejected",
       amount,
-      commissionRateBps: DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS,
+      commissionRateBps: rate,
       reason: blockReason,
       availableAt: null,
     };
@@ -212,7 +211,7 @@ export function decideCommissionForOrder(
     return {
       status: "temporary",
       amount,
-      commissionRateBps: DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS,
+      commissionRateBps: rate,
       reason: "Order is not delivered yet.",
       availableAt: null,
     };
@@ -221,14 +220,14 @@ export function decideCommissionForOrder(
     return {
       status: "reconciliation_waiting",
       amount,
-      commissionRateBps: DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS,
+      commissionRateBps: rate,
       reason: `Delivered order is waiting ${RECONCILIATION_WAIT_DAYS} days for reconciliation.`,
       availableAt,
     };
   return {
     status: "payable",
     amount,
-    commissionRateBps: DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS,
+    commissionRateBps: rate,
     reason: "Delivered order passed reconciliation wait.",
     availableAt,
   };
@@ -243,7 +242,7 @@ export async function recalculateOrderCommission(
       include: {
         partner: { include: { partnerType: true } },
         ledgerEntries: true,
-        attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } } },
+        attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } }, include: { partnerCode: true }, orderBy: { createdAt: "asc" } },
       },
       where: { id: orderId },
     });
@@ -261,26 +260,29 @@ export async function recalculateOrderCommission(
         decision: null,
         skippedReason: "Order has no partner attribution.",
       };
-    if (order.partner?.partnerType.code !== "referral_ctv")
+    const partnerTypeCode = order.partner?.partnerType.code;
+    const commissionableSources = partnerTypeCode === "shop_referral" ? COMMISSIONABLE_SHOP_REFERRAL_SOURCES : COMMISSIONABLE_REFERRAL_CTV_SOURCES;
+    if (partnerTypeCode !== "referral_ctv" && partnerTypeCode !== "shop_referral")
       return {
         orderId,
         ledger: null,
         decision: null,
-        skippedReason:
-          "Only referral_ctv affiliate/manual/order_request orders are commissionable in Phase 1.",
+        skippedReason: "Partner type is not commissionable yet.",
       };
-    if (
-      !order.attributions.some((a) =>
-        COMMISSIONABLE_REFERRAL_CTV_SOURCES.includes(a.source),
-      )
-    )
+    const primaryAttribution = order.attributions.find((a) => commissionableSources.includes(a.source));
+    if (!primaryAttribution)
       return {
         orderId,
         ledger: null,
         decision: null,
-        skippedReason:
-          "Order attribution source is not commissionable for referral_ctv.",
+        skippedReason: `Order attribution source is not commissionable for ${partnerTypeCode}.`,
       };
+    const defaultRate = partnerTypeCode === "shop_referral" ? DEFAULT_SHOP_REFERRAL_COMMISSION_RATE_BPS : DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS;
+    const typeRule = await tx.partnerCommissionRule.findFirst({
+      where: { active: true, partnerTypeId: order.partner!.partnerTypeId, commissionRateBps: { not: null } },
+      orderBy: { createdAt: "asc" },
+    });
+    const commissionRateBps = primaryAttribution.partnerCode?.commissionRateBps ?? typeRule?.commissionRateBps ?? defaultRate;
     const existing = order.ledgerEntries[0];
     if (existing && PAID_LEDGER_STATUSES.has(existing.status)) {
       if (isOrderCancelledOrReturned(order)) {
@@ -315,7 +317,7 @@ export async function recalculateOrderCommission(
           "Paid ledger entries are immutable and were not overwritten. Đơn đã hủy sau khi hoa hồng đã thanh toán - cần đối soát thủ công.",
       };
     }
-    const decision = decideCommissionForOrder(order, now);
+    const decision = decideCommissionForOrder(order, now, commissionRateBps);
     const data = {
       partnerId: order.partnerId,
       orderId: order.id,
@@ -374,10 +376,10 @@ export async function recalculateOpenCommissions(now = new Date()) {
   const orders = await db.partnerOrder.findMany({
     where: {
       partnerId: { not: null },
-      partner: { partnerType: { code: "referral_ctv" } },
-      attributions: {
-        some: { source: { in: COMMISSIONABLE_REFERRAL_CTV_SOURCES } },
-      },
+      OR: [
+        { partner: { partnerType: { code: "referral_ctv" } }, attributions: { some: { source: { in: COMMISSIONABLE_REFERRAL_CTV_SOURCES } } } },
+        { partner: { partnerType: { code: "shop_referral" } }, attributions: { some: { source: { in: COMMISSIONABLE_SHOP_REFERRAL_SOURCES } } } },
+      ],
     },
     select: { id: true },
   });

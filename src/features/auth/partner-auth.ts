@@ -60,7 +60,7 @@ export async function createPartnerSession(login: string, password: string) {
 export async function getCurrentPartnerSession() {
   const token = (await cookieStore()).get(COOKIE_NAME)?.value;
   if (!token) return null;
-  return db.partnerAuthSession.findFirst({ where: { tokenHash: sha256(token), revokedAt: null, expiresAt: { gt: new Date() }, account: { status: "active" } }, include: { account: { include: { partner: { include: { profile: true, codes: true } } } } } });
+  return db.partnerAuthSession.findFirst({ where: { tokenHash: sha256(token), revokedAt: null, expiresAt: { gt: new Date() }, account: { status: "active" } }, include: { account: { include: { partner: { include: { profile: true, partnerType: true, codes: true } } } } } });
 }
 export async function requirePartnerSession() { const session = await getCurrentPartnerSession(); if (!session) redirect("/dang-nhap"); return session; }
 export async function destroyPartnerSession() { const token = (await cookieStore()).get(COOKIE_NAME)?.value; if (token) await db.partnerAuthSession.updateMany({ where: { tokenHash: sha256(token), revokedAt: null }, data: { revokedAt: new Date() } }); (await cookieStore()).delete(COOKIE_NAME); }
