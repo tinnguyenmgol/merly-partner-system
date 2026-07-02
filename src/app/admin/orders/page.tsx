@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { displayOrderCommissionStatus, getOrderCommissionBlockReason } from "@/features/commissions";
 import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
@@ -6,6 +7,7 @@ import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
+  await requireAdminSession();
   let schemaWarning: string | null = null;
   const orders = [];
 

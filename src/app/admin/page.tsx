@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import Link from "next/link";
 import { CommissionStatus, PartnerStatus, PartnerTypeCode, Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -89,6 +90,7 @@ function metadataNumber(metadata: Prisma.JsonValue | null | undefined, keys: str
 }
 
 export default async function Admin({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireAdminSession();
   const params = await searchParams;
   const range = getDateRange(params);
   const rawSource = params.source;

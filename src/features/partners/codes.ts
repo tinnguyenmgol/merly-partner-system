@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -26,6 +27,7 @@ function normalizeCode(value: string) {
 }
 
 export async function createShopReferralCodeAction(formData: FormData) {
+  await requireAdminSession();
   const partnerId = text(formData, "partnerId");
   const code = normalizeCode(text(formData, "code"));
   const customerDiscountBps = percentToBps(formData, "customerDiscountPercent");
@@ -43,6 +45,7 @@ export async function createShopReferralCodeAction(formData: FormData) {
 }
 
 export async function updatePartnerCodeAction(formData: FormData) {
+  await requireAdminSession();
   const partnerId = text(formData, "partnerId");
   const codeId = text(formData, "codeId");
   const active = text(formData, "active") === "true";
@@ -61,6 +64,7 @@ export async function updatePartnerCodeAction(formData: FormData) {
 }
 
 export async function normalizePartnerCodeAction(formData: FormData) {
+  await requireAdminSession();
   const partnerId = text(formData, "partnerId");
   const codeId = text(formData, "codeId");
   if (!partnerId || !codeId) throw new Error("Missing partner/code id.");

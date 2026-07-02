@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { approvePayoutAction, cancelPayoutAction, getLastPayoutReconciliationAt, markPayoutPaidAction, PAYOUT_STATUS_LABELS, reconcilePayoutBeforeApproveAction, rejectPayoutAction } from "@/features/payouts";
 import { getOrderCommissionBlockReason } from "@/features/commissions";
@@ -8,6 +9,7 @@ import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sourc
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
+  await requireAdminSession();
   const payouts = hasDatabaseUrl()
     ? await db.partnerPayout.findMany({
         include: {

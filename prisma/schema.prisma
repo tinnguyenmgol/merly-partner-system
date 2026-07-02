@@ -60,6 +60,49 @@ enum RiskFlagStatus {
   dismissed
 }
 
+enum AdminRole {
+  owner
+  admin
+  staff
+}
+
+enum AdminUserStatus {
+  active
+  disabled
+}
+
+model AdminUser {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String?
+  passwordHash String
+  role         AdminRole       @default(admin)
+  status       AdminUserStatus @default(active)
+  lastLoginAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  sessions AdminAuthSession[]
+
+  @@index([status])
+}
+
+model AdminAuthSession {
+  id          String    @id @default(cuid())
+  adminUserId String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  userAgent   String?
+  ipHash      String?
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
+
 enum PartnerOrderRequestStatus {
   pending
   matched
@@ -90,48 +133,48 @@ model Partner {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  partnerType   PartnerType               @relation(fields: [partnerTypeId], references: [id])
-  profile       PartnerProfile?
-  codes         PartnerCode[]
-  orders        PartnerOrder[]
-  ledgerEntries PartnerCommissionLedger[]
-  payouts       PartnerPayout[]
-  riskFlags     PartnerRiskFlag[]
-  auditLogs     AdminAuditLog[]
-  clicks        PartnerClick[]
+  partnerType     PartnerType               @relation(fields: [partnerTypeId], references: [id])
+  profile         PartnerProfile?
+  codes           PartnerCode[]
+  orders          PartnerOrder[]
+  ledgerEntries   PartnerCommissionLedger[]
+  payouts         PartnerPayout[]
+  riskFlags       PartnerRiskFlag[]
+  auditLogs       AdminAuditLog[]
+  clicks          PartnerClick[]
   statementTokens PartnerStatementToken[]
-  orderRequests PartnerOrderRequest[]
-  account PartnerAccount?
+  orderRequests   PartnerOrderRequest[]
+  account         PartnerAccount?
 }
 
 model PartnerProfile {
-  id                String  @id @default(cuid())
-  partnerId         String  @unique
-  fullName          String
-  contactName       String?
-  shopName          String?
-  businessName      String?
-  storeAddress      String?
-  warehouseAddress  String?
-  cityProvince      String?
-  salesChannel      String?
-  customerSegment   String?
-  displayAreaNote   String?
-  expectedDisplayQuantity Int?
-  businessModelNote String?
+  id                         String   @id @default(cuid())
+  partnerId                  String   @unique
+  fullName                   String
+  contactName                String?
+  shopName                   String?
+  businessName               String?
+  storeAddress               String?
+  warehouseAddress           String?
+  cityProvince               String?
+  salesChannel               String?
+  customerSegment            String?
+  displayAreaNote            String?
+  expectedDisplayQuantity    Int?
+  businessModelNote          String?
   expectedOpeningOrderAmount Int?
-  coverageArea      String?
-  taxCode           String?
-  hasOfflineStore   Boolean?
-  hasLivestream     Boolean?
-  zalo              String?
-  area              String?
-  sellingChannel    String?
-  socialLink        String?
-  experienceNote    String?
-  bankAccountHolder String?
-  bankName          String?
-  bankAccountNumber String?
+  coverageArea               String?
+  taxCode                    String?
+  hasOfflineStore            Boolean?
+  hasLivestream              Boolean?
+  zalo                       String?
+  area                       String?
+  sellingChannel             String?
+  socialLink                 String?
+  experienceNote             String?
+  bankAccountHolder          String?
+  bankName                   String?
+  bankAccountNumber          String?
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 }
@@ -242,7 +285,7 @@ model PartnerOrderRequest {
   updatedAt      DateTime                  @updatedAt
 
   partner      Partner       @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  matchedOrder PartnerOrder?  @relation(fields: [matchedOrderId], references: [id], onDelete: SetNull)
+  matchedOrder PartnerOrder? @relation(fields: [matchedOrderId], references: [id], onDelete: SetNull)
 
   @@index([partnerId, status, createdAt])
   @@index([status, createdAt])
@@ -367,12 +410,12 @@ model PartnerAuthToken {
 }
 
 model PartnerStatementToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   partnerId String
-  tokenHash String   @unique
+  tokenHash String    @unique
   revokedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 

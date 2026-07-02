@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { CTV_SETTINGS_KEY, normalizeCtvProgramSettings } from "./settings";
@@ -9,6 +10,7 @@ function readInt(formData: FormData, key: string, fallback: number) { const pars
 function readBps(formData: FormData, key: string, fallback: number) { const parsed = Number(readString(formData, key).replace(",", ".")); return Number.isFinite(parsed) ? Math.round(parsed * 100) : fallback; }
 
 export async function updateCtvProgramSettingsAction(formData: FormData) {
+  await requireAdminSession();
   const existing = await db.partnerProgramSetting.findUnique({ where: { key: CTV_SETTINGS_KEY } });
   const current = normalizeCtvProgramSettings(existing?.value);
   const normal = current.ctvNoStockCommissionPolicy.orderClasses.find((c) => c.key === "normal_price")!;

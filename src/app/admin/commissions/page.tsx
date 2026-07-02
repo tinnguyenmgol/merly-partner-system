@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { CommissionStatus } from "@prisma/client";
 import { recalculateOpenCommissionsAction } from "@/features/commissions/actions";
 import { ACTIVE_LEDGER_STATUSES, describeCommissionLedger, formatCommissionRate, getOrderCommissionBlockReason, MINIMUM_PAYOUT_AMOUNT_VND, summarizeLedgers } from "@/features/commissions";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 const statuses: CommissionStatus[] = ["temporary", "reconciliation_waiting", "payable", "paid", "rejected", "on_hold"];
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ status?: CommissionStatus; partner?: string }> }) {
+  await requireAdminSession();
   const filters = await searchParams;
   let ledgerWarning: string | null = null;
   const ledgers = [];

@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { PartnerOrderRequestStatus } from "@prisma/client";
@@ -44,6 +45,7 @@ export async function createOrderRequest(formData: FormData) {
 
 export async function adminMatchOrderRequest(formData: FormData) {
   "use server";
+  await requireAdminSession();
   const requestId = text(formData, "requestId");
   const matchedOrderId = text(formData, "matchedOrderId");
   const adminNote = text(formData, "adminNote");
@@ -72,6 +74,7 @@ export async function adminMatchOrderRequest(formData: FormData) {
 
 export async function adminSyncOrderRequestFromHaravan(formData: FormData) {
   "use server";
+  await requireAdminSession();
   const requestId = text(formData, "requestId");
   if (!requestId) return;
   const request = await db.partnerOrderRequest.findUnique({ where: { id: requestId }, select: { orderCode: true } });
@@ -90,6 +93,7 @@ export async function adminSyncOrderRequestFromHaravan(formData: FormData) {
 
 export async function adminApproveOrderRequest(formData: FormData) {
   "use server";
+  await requireAdminSession();
   const requestId = text(formData, "requestId");
   const adminNote = text(formData, "adminNote");
   if (!requestId) return;
@@ -146,6 +150,7 @@ export async function adminCancelOrderRequest(formData: FormData) {
   await adminSetTerminalStatus(formData, "cancelled");
 }
 async function adminSetTerminalStatus(formData: FormData, status: "rejected" | "cancelled") {
+  await requireAdminSession();
   const requestId = text(formData, "requestId");
   const reason = text(formData, "rejectReason") ?? text(formData, "adminNote");
   if (!requestId) return;
