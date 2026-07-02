@@ -13,6 +13,11 @@ export function TestEmailForm() {
         Email nhận thử
         <input className="input" name="to" placeholder="noreply@merlyshoes.com" type="email" />
       </label>
+      <fieldset className="grid gap-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-700 md:col-span-3">
+        <legend className="font-semibold text-stone-900">SMTP auth method test</legend>
+        <label className="flex items-center gap-2"><input name="authMethod" type="radio" value="LOGIN" defaultChecked /> Force LOGIN</label>
+        <label className="flex items-center gap-2"><input name="authMethod" type="radio" value="DEFAULT" /> Default auth</label>
+      </fieldset>
       <button className="btn-secondary self-end" disabled={pending} name="intent" value="verify">{pending ? "Đang kiểm tra..." : "Kiểm tra SMTP verify"}</button>
       <button className="btn-primary self-end" disabled={pending} name="intent" value="send">{pending ? "Đang gửi..." : "Gửi email thử"}</button>
     </form>
