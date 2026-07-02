@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { PartnerOrderRequestStatus } from "@prisma/client";
 import { recalculateOrderCommission } from "@/features/commissions";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
+import { syncHaravanOrderByCode } from "@/features/haravan/order-sync";
 import { db } from "@/lib/db";
 
 export const ORDER_REQUEST_STATUS_LABELS: Record<PartnerOrderRequestStatus, string> = {
@@ -67,6 +68,24 @@ export async function adminMatchOrderRequest(formData: FormData) {
     });
   });
   revalidatePath("/admin/order-requests");
+}
+
+export async function adminSyncOrderRequestFromHaravan(formData: FormData) {
+  "use server";
+  const requestId = text(formData, "requestId");
+  if (!requestId) return;
+  const request = await db.partnerOrderRequest.findUnique({ where: { id: requestId }, select: { orderCode: true } });
+  if (!request?.orderCode) {
+    redirect(`/admin/order-requests?id=${encodeURIComponent(requestId)}&message=${encodeURIComponent("Vui lòng kiểm tra lại mã đơn.")}`);
+  }
+  const result = await syncHaravanOrderByCode(request.orderCode);
+  const message = result.ok && result.found
+    ? "Đã đồng bộ đơn từ Haravan. Vui lòng gắn đơn để duyệt yêu cầu."
+    : result.ok
+      ? "Không tìm thấy đơn này trên Haravan. Vui lòng kiểm tra lại mã đơn."
+      : `Không thể đồng bộ Haravan: ${result.message}`;
+  revalidatePath("/admin/order-requests");
+  redirect(`/admin/order-requests?id=${encodeURIComponent(requestId)}&message=${encodeURIComponent(message)}`);
 }
 
 export async function adminApproveOrderRequest(formData: FormData) {
