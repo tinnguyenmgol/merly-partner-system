@@ -2,10 +2,14 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import {
   MINIMUM_PAYOUT_AMOUNT_VND,
+  getCtvMonthlyTier,
+  getCtvTierLabel,
+  isCtvOrderValidForMonthlyTier,
   summarizeLedgers,
   summarizeOrders,
 } from "@/features/commissions";
 import { formatVnd } from "@/lib/money";
+import { getCtvProgramSettings } from "@/features/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +26,16 @@ export default async function Dashboard() {
   );
   const orderSummary = summarizeOrders(orders);
   const code = partner.codes[0]?.code ?? "—";
+  const settings = await getCtvProgramSettings();
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const monthlyValidOrders = orders.filter((order) => order.createdAt >= monthStart && order.createdAt < nextMonth && isCtvOrderValidForMonthlyTier(order)).length;
+  const currentTier = getCtvMonthlyTier(monthlyValidOrders, settings.ctvNoStockCommissionPolicy.monthlyTierThresholds);
+  const tier10 = settings.ctvNoStockCommissionPolicy.monthlyTierThresholds.find((t) => t.key === "tier_10")!.minValidOrders;
+  const tier30 = settings.ctvNoStockCommissionPolicy.monthlyTierThresholds.find((t) => t.key === "tier_30")!.minValidOrders;
+  const nextThreshold = monthlyValidOrders < tier10 ? tier10 : monthlyValidOrders < tier30 ? tier30 : null;
+  const progressMessage = nextThreshold ? `Tháng này chị có ${monthlyValidOrders} đơn hợp lệ. Còn ${nextThreshold - monthlyValidOrders} đơn nữa để đạt mốc hoa hồng từ ${nextThreshold} đơn/tháng.` : `Chị đang ở mốc cao nhất từ ${tier30} đơn/tháng.`;
 
   return (
     <DashboardShell>
@@ -55,6 +69,12 @@ export default async function Dashboard() {
           <p>Đơn đã hủy/không tính hoa hồng</p>
           <b>{orderSummary.cancelledOrBlockedOrders}</b>
         </div>
+      </div>
+      <div className="card mt-6">
+        <h2 className="text-2xl font-bold text-merly-900">Tiến độ hoa hồng tháng này</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-4"><div><p>Đơn hợp lệ tháng này</p><b>{monthlyValidOrders}</b></div><div><p>Hạng hoa hồng hiện tại</p><b>{getCtvTierLabel(currentTier)}</b></div><div><p>Mốc tiếp theo</p><b>{nextThreshold ? `Từ ${nextThreshold} đơn/tháng` : "Mốc cao nhất"}</b></div><div><p>Còn thiếu</p><b>{nextThreshold ? `${nextThreshold - monthlyValidOrders} đơn` : "0 đơn"}</b></div></div>
+        <p className="mt-4 rounded-xl bg-rose-50 p-3 text-merly-900">{currentTier === "tier_10" ? `Chị đang ở mốc từ ${tier10} đơn/tháng.` : progressMessage}</p>
+        <div className="mt-4 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="text-stone-500"><tr><th>Loại đơn</th><th>Dưới {tier10} đơn/tháng</th><th>Từ {tier10} đơn/tháng</th><th>Từ {tier30} đơn/tháng</th></tr></thead><tbody>{settings.ctvNoStockCommissionPolicy.orderClasses.map((c) => <tr className="border-t border-stone-100" key={c.key}><td className="py-3">{c.label}</td><td>{c.ratesByTierBps.base / 100}%</td><td>{c.ratesByTierBps.tier_10 / 100}%</td><td>{c.ratesByTierBps.tier_30 / 100}%</td></tr>)}</tbody></table></div>
       </div>
     </DashboardShell>
   );
