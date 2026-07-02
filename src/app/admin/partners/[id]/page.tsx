@@ -4,12 +4,14 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { createPartnerStatementTokenAction } from "@/features/commissions/actions";
 import {
   MINIMUM_PAYOUT_AMOUNT_VND,
+  formatCommissionRate,
   summarizeLedgers,
 } from "@/features/commissions";
 import {
   partnerAccountAction,
   reviewPartnerRegistration,
 } from "@/features/partners/intake";
+import { createShopReferralCodeAction, updatePartnerCodeAction } from "@/features/partners/codes";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { formatVnd } from "@/lib/money";
 
@@ -43,7 +45,7 @@ export default async function Page({
     include: {
       partnerType: true,
       profile: true,
-      codes: true,
+      codes: { orderBy: { createdAt: "desc" }, include: { attributions: { include: { order: true }, orderBy: { createdAt: "desc" }, take: 5 } } },
       ledgerEntries: { include: { order: true } },
       statementTokens: {
         where: { revokedAt: null },
@@ -219,21 +221,47 @@ export default async function Page({
             </form>
           </div>
           <div className="card">
-            <h2 className="text-xl font-bold text-merly-900">Mã giới thiệu</h2>
-            <div className="mt-4 grid gap-2">
+            <h2 className="text-xl font-bold text-merly-900">Mã đối tác</h2>
+            <div className="mt-4 grid gap-3">
               {partner.codes.length > 0 ? (
                 partner.codes.map((code) => (
-                  <span
-                    className="rounded-xl bg-rose-50 p-3 font-mono font-semibold"
-                    key={code.id}
-                  >
-                    {code.code}
-                  </span>
+                  <form action={updatePartnerCodeAction} className="rounded-xl bg-rose-50 p-3" key={code.id}>
+                    <input name="partnerId" type="hidden" value={partner.id} />
+                    <input name="codeId" type="hidden" value={code.id} />
+                    <p className="font-mono font-semibold text-merly-900">{code.code}</p>
+                    <dl className="mt-2 grid gap-1 text-xs text-stone-600">
+                      <div>Mã giảm giá / Loại mã: <b>{code.codePurpose}</b></div>
+                      <div>Nguồn: <b>{code.source}</b></div>
+                      <div>Giảm cho khách: <b>{formatCommissionRate(code.customerDiscountBps)}</b></div>
+                      <div>Hoa hồng đối tác: <b>{formatCommissionRate(code.commissionRateBps)}</b></div>
+                      <div>Trạng thái: <b>{code.active ? "Đang hoạt động" : "Đã tắt"}</b></div>
+                      <div>Ngày tạo: <b>{code.createdAt.toLocaleDateString("vi-VN")}</b></div>
+                    </dl>
+                    <div className="mt-3 grid gap-2">
+                      <label className="grid gap-1 text-xs">Giảm cho khách (bps)<input className="input" name="customerDiscountBps" type="number" min="0" max="10000" defaultValue={code.customerDiscountBps ?? ""} /></label>
+                      <label className="grid gap-1 text-xs">Hoa hồng đối tác (bps)<input className="input" name="commissionRateBps" type="number" min="0" max="10000" defaultValue={code.commissionRateBps ?? ""} /></label>
+                      <select className="input" name="active" defaultValue={code.active ? "true" : "false"}><option value="true">Đang hoạt động</option><option value="false">Đã tắt</option></select>
+                      <button className="btn-secondary" type="submit">Lưu mã</button>
+                    </div>
+                    <div className="mt-3 text-xs text-stone-600">
+                      <b>Đơn gần đây:</b> {code.attributions.length ? code.attributions.map((a) => a.order.orderCode).join(", ") : "Chưa có"}
+                    </div>
+                  </form>
                 ))
               ) : (
                 <p className="text-sm text-stone-500">Chưa tạo mã.</p>
               )}
             </div>
+            {partner.partnerType.code === "shop_referral" ? (
+              <form action={createShopReferralCodeAction} className="mt-4 grid gap-2 rounded-xl border border-rose-100 p-3">
+                <input name="partnerId" type="hidden" value={partner.id} />
+                <h3 className="font-bold text-merly-900">Tạo mã shop discount</h3>
+                <input className="input" name="code" placeholder="SHOPANNA7" />
+                <input className="input" name="customerDiscountBps" type="number" min="0" max="10000" placeholder="Giảm cho khách, vd 700" />
+                <input className="input" name="commissionRateBps" type="number" min="0" max="10000" placeholder="Hoa hồng đối tác, vd 700" />
+                <button className="btn-primary" type="submit">Tạo mã</button>
+              </form>
+            ) : null}
           </div>
         </aside>
       </div>

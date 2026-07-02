@@ -82,6 +82,9 @@ export async function resolveHaravanAttribution(
       where: {
         active: true,
         code,
+        ...(partnerType === "shop_referral"
+          ? { codePurpose: "shop_discount_code", source: ATTRIBUTION_SOURCES.SHOP_DISCOUNT_CODE }
+          : {}),
         partner: {
           status: "approved",
           partnerType: { code: partnerType, enabled: true },
