@@ -4,6 +4,7 @@ import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, hasDatabaseUrl } from "@/lib/db";
+import { getCtvProgramSettings } from "@/features/settings";
 import { Prisma, type PartnerStatus } from "@prisma/client";
 
 
@@ -197,6 +198,11 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
     redirect("/dang-ky?status=database-missing");
   }
 
+  const settings = await getCtvProgramSettings();
+  if (!settings.ctvProgramEnabled && values.partnerTypeCode === REFERRAL_PARTNER_TYPE) {
+    return { message: "Chương trình CTV Merly đang tạm ngưng nhận đăng ký mới. Vui lòng quay lại sau hoặc liên hệ Merly để được hỗ trợ.", values };
+  }
+
   const fieldErrors = validateRegistration(values);
   if (Object.keys(fieldErrors).length > 0) {
     return { message: "Vui lòng kiểm tra các thông tin bắt buộc.", fieldErrors, values };
@@ -349,7 +355,7 @@ export async function partnerAccountAction(formData: FormData) {
   revalidatePath(`/admin/partners/${partnerId}`);
   if (action === "generate") {
     const { generateSetupPasswordToken } = await import("@/features/auth/partner-auth");
-    const token = await generateSetupPasswordToken(accountId);
-    redirect(`/admin/partners/${partnerId}?setupToken=${token}`);
+    const token = await generateSetupPasswordToken(accountId, "reset_password");
+    redirect(`/admin/partners/${partnerId}?resetToken=${token}`);
   }
 }

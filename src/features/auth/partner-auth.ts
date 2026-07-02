@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 const COOKIE_NAME = "merly_partner_session";
 const SESSION_DAYS = 30;
 const SETUP_DAYS = 7;
+const RESET_MINUTES = 60;
 
 export function normalizeLogin(input: string) {
   const value = input.trim().toLowerCase();
@@ -25,8 +26,16 @@ async function requestMeta() { const h = await headers(); return { userAgent: h.
 
 export async function generateSetupPasswordToken(accountId: string, purpose = "setup_password") {
   const token = rawToken();
-  await db.partnerAuthToken.create({ data: { accountId, purpose, tokenHash: sha256(token), expiresAt: new Date(Date.now() + SETUP_DAYS * 86400000) } });
+  const ttlMs = purpose === "reset_password" ? RESET_MINUTES * 60000 : SETUP_DAYS * 86400000;
+  await db.partnerAuthToken.create({ data: { accountId, purpose, tokenHash: sha256(token), expiresAt: new Date(Date.now() + ttlMs) } });
   return token;
+}
+
+export async function createPasswordResetTokenForLogin(login: string) {
+  const normalized = normalizeLogin(login);
+  const account = await db.partnerAccount.findFirst({ where: { OR: [{ email: normalized.email ?? "__none__" }, { phone: normalized.phone ?? "__none__" }] } });
+  if (!account || account.status === "disabled") return null;
+  return generateSetupPasswordToken(account.id, "reset_password");
 }
 
 export async function validateAuthToken(token: string, purpose: "setup_password" | "reset_password" = "setup_password") {
@@ -34,13 +43,14 @@ export async function validateAuthToken(token: string, purpose: "setup_password"
   return db.partnerAuthToken.findFirst({ where: { tokenHash: sha256(token), purpose, usedAt: null, expiresAt: { gt: new Date() } }, include: { account: { include: { partner: true } } } });
 }
 
-export async function setPasswordWithToken(token: string, password: string) {
-  const authToken = await validateAuthToken(token, "setup_password");
-  if (!authToken) return { ok: false, message: "Link thiết lập mật khẩu không hợp lệ hoặc đã hết hạn." };
+export async function setPasswordWithToken(token: string, password: string, purpose: "setup_password" | "reset_password" = "setup_password") {
+  const authToken = await validateAuthToken(token, purpose);
+  if (!authToken) return { ok: false, message: purpose === "reset_password" ? "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn." : "Link thiết lập mật khẩu không hợp lệ hoặc đã hết hạn." };
   if (password.length < 8) return { ok: false, message: "Mật khẩu phải có ít nhất 8 ký tự." };
   await db.$transaction([
     db.partnerAccount.update({ where: { id: authToken.accountId }, data: { passwordHash: hashPassword(password), status: "active", passwordSetAt: new Date() } }),
     db.partnerAuthToken.update({ where: { id: authToken.id }, data: { usedAt: new Date() } }),
+    ...(purpose === "reset_password" ? [db.partnerAuthSession.updateMany({ where: { accountId: authToken.accountId, revokedAt: null }, data: { revokedAt: new Date() } })] : []),
   ]);
   return { ok: true, message: "Đã thiết lập mật khẩu. Vui lòng đăng nhập." };
 }
