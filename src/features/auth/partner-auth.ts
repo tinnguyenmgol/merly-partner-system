@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual, createHash } from "crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { sendTransactionalEmail } from "@/lib/mail";
 
 const COOKIE_NAME = "merly_partner_session";
 const SESSION_DAYS = 30;
@@ -31,11 +32,44 @@ export async function generateSetupPasswordToken(accountId: string, purpose = "s
   return token;
 }
 
+function getAppBaseUrl() { return (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, ""); }
+
+function passwordResetEmail(link: string) {
+  const text = [
+    "Chào chị,",
+    "",
+    "Merly nhận được yêu cầu đặt lại mật khẩu cho tài khoản CTV.",
+    `Đặt lại mật khẩu: ${link}`,
+    "",
+    "Link hết hạn sau 60 phút.",
+    "Nếu chị không yêu cầu, vui lòng bỏ qua email này.",
+    "",
+    "Merly",
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#292524">
+      <p>Chào chị,</p>
+      <p>Merly nhận được yêu cầu đặt lại mật khẩu cho tài khoản CTV.</p>
+      <p><a href="${link}" style="display:inline-block;border-radius:12px;background:#be123c;color:#ffffff;padding:12px 18px;text-decoration:none;font-weight:700">Đặt lại mật khẩu</a></p>
+      <p>Nếu nút không hoạt động, chị có thể mở link này:</p>
+      <p style="word-break:break-all"><a href="${link}">${link}</a></p>
+      <p>Link hết hạn sau 60 phút.</p>
+      <p>Nếu chị không yêu cầu, vui lòng bỏ qua email này.</p>
+      <p>Merly</p>
+    </div>`;
+  return { html, text };
+}
+
 export async function createPasswordResetTokenForLogin(login: string) {
   const normalized = normalizeLogin(login);
   const account = await db.partnerAccount.findFirst({ where: { OR: [{ email: normalized.email ?? "__none__" }, { phone: normalized.phone ?? "__none__" }] } });
-  if (!account || account.status === "disabled") return null;
-  return generateSetupPasswordToken(account.id, "reset_password");
+  if (!account || account.status === "disabled") return { tokenCreated: false, email: { ok: false, skipped: true, reason: "No eligible account." } };
+  const token = await generateSetupPasswordToken(account.id, "reset_password");
+  if (!account.email) return { tokenCreated: true, email: { ok: false, skipped: true, reason: "Account has no email." } };
+  const link = `${getAppBaseUrl()}/dat-lai-mat-khau?token=${encodeURIComponent(token)}`;
+  const content = passwordResetEmail(link);
+  const email = await sendTransactionalEmail({ to: account.email, subject: "Đặt lại mật khẩu CTV Merly", ...content });
+  return { tokenCreated: true, email };
 }
 
 export async function validateAuthToken(token: string, purpose: "setup_password" | "reset_password" = "setup_password") {

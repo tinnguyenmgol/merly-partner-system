@@ -104,6 +104,8 @@ export default async function Page({
 
   if (!partner) notFound();
   const summary = summarizeLedgers(partner.ledgerEntries);
+  const appBaseUrl = (process.env.APP_BASE_URL ?? "").replace(/\/$/, "");
+  const resetUrl = resetToken ? `${appBaseUrl}/dat-lai-mat-khau?token=${resetToken}` : null;
   const publicStatementUrl = statementToken
     ? `/partners/public-statement/${statementToken}`
     : partner.statementTokens[0]
@@ -214,9 +216,14 @@ export default async function Page({
                 Enable login
               </button>
             </form>
-            {resetToken ? (
+            {!partner.account?.email ? (
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
+                Account chưa có email; admin có thể tạo link reset thủ công và gửi qua kênh xác minh riêng.
+              </p>
+            ) : null}
+            {resetUrl ? (
               <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm break-all">
-                Sao chép link đặt lại mật khẩu: /dat-lai-mat-khau?token={resetToken}
+                Sao chép link đặt lại mật khẩu: {resetUrl}
               </p>
             ) : null}
           </div>

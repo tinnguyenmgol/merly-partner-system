@@ -77,3 +77,19 @@ Approved Phase 1 `referral_ctv` partners now use real partner login accounts. Wh
 The CTV sets a password, the account becomes `active`, and they log in at `/dang-nhap` with phone or email plus password. Authenticated dashboard pages read the partner id from the server-side session cookie and show only that partner's referral code, orders, commission ledger summary, payout-minimum status, and read-only profile details. `/dang-xuat` revokes the session and clears the httpOnly cookie.
 
 Out of scope remains full admin auth/RBAC, email/SMS sending, OTP, payout requests, and specialized Mini Corner/wholesale/shop-referral dashboards.
+
+## SMTP email for CTV password reset
+
+Forgot-password email delivery uses SMTP configuration from environment variables. Production Hostinger should be configured with:
+
+```env
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=noreply@merlyshoes.com
+SMTP_PASSWORD=<mailbox password>
+SMTP_FROM="Merly <noreply@merlyshoes.com>"
+APP_BASE_URL=https://partner.merlyshoes.com
+```
+
+If the SMTP variables are incomplete, the app does not crash. It still creates eligible one-time reset tokens and keeps the admin/manual reset-link fallback, but transactional email sending is skipped with an internal result. After changing environment variables on Hostinger, restart the Node app so the running process loads the new values.
