@@ -66,10 +66,10 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ statementToken?: string; setupToken?: string }>;
+  searchParams: Promise<{ statementToken?: string; resetToken?: string }>;
 }) {
   const { id } = await params;
-  const { statementToken, setupToken } = await searchParams;
+  const { statementToken, resetToken } = await searchParams;
 
   if (!hasDatabaseUrl()) {
     return (
@@ -180,6 +180,12 @@ export default async function Page({
                     : "—"}
                 </dd>
               </div>
+              <div>
+                <dt className="text-stone-500">Trạng thái mật khẩu</dt>
+                <dd className="font-semibold text-merly-900">
+                  {partner.account?.passwordSetAt ? "Đã thiết lập" : "Chưa thiết lập"}
+                </dd>
+              </div>
             </dl>
             <form
               action={partnerAccountAction}
@@ -191,7 +197,7 @@ export default async function Page({
                 name="accountAction"
                 value="generate"
               >
-                Generate setup/reset link
+                Tạo link đặt lại mật khẩu
               </button>
               <button
                 className="btn-secondary"
@@ -208,9 +214,9 @@ export default async function Page({
                 Enable login
               </button>
             </form>
-            {setupToken ? (
+            {resetToken ? (
               <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm break-all">
-                /thiet-lap-mat-khau?token={setupToken}
+                Sao chép link đặt lại mật khẩu: /dat-lai-mat-khau?token={resetToken}
               </p>
             ) : null}
           </div>

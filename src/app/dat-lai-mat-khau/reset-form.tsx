@@ -1,0 +1,4 @@
+"use client";
+import { useActionState } from "react";
+import { resetPasswordAction } from "@/features/auth/actions";
+export function ResetPasswordForm({ token }: { token: string }){const [state,action,pending]=useActionState(resetPasswordAction,{message:""});return <form action={action} className="mt-6 grid gap-4">{state.message?<p className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">{state.message}</p>:null}<input name="token" type="hidden" value={token}/><input className="input" name="password" type="password" placeholder="Mật khẩu mới" required minLength={8}/><input className="input" name="confirmPassword" type="password" placeholder="Nhập lại mật khẩu mới" required minLength={8}/><button className="btn-primary" disabled={pending}>{pending?"Đang đặt lại...":"Đặt lại mật khẩu"}</button></form>}

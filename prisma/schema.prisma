@@ -441,6 +441,16 @@ model AdminAuditLog {
   partner Partner? @relation(fields: [partnerId], references: [id])
 }
 
+model PartnerProgramSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
 model HaravanSyncLog {
   id         String    @id @default(cuid())
   syncType   String
