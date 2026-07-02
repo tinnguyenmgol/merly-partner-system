@@ -23,7 +23,8 @@
     "@prisma/client": "5.22.0",
     "next": "16.2.9",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "nodemailer": "^6.9.16"
   },
   "devDependencies": {
     "@types/node": "22.10.7",
