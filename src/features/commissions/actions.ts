@@ -1,10 +1,12 @@
 "use server";
 
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createPartnerStatementToken, recalculateOpenCommissions } from "./index";
 
 export async function recalculateOpenCommissionsAction() {
+  await requireAdminSession();
   const results = await recalculateOpenCommissions();
   revalidatePath("/admin/commissions");
   revalidatePath("/admin/payouts");
@@ -12,6 +14,7 @@ export async function recalculateOpenCommissionsAction() {
 }
 
 export async function createPartnerStatementTokenAction(formData: FormData) {
+  await requireAdminSession();
   const partnerId = String(formData.get("partnerId") ?? "");
   if (!partnerId) throw new Error("Missing partnerId");
   const token = await createPartnerStatementToken(partnerId);

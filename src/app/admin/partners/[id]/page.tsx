@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -68,6 +69,7 @@ export default async function Page({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ statementToken?: string; resetToken?: string }>;
 }) {
+  await requireAdminSession();
   const { id } = await params;
   const { statementToken, resetToken } = await searchParams;
 

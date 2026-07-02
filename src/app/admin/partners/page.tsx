@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import Link from "next/link";
 import type { PartnerTypeCode, Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -34,6 +35,7 @@ function quickInfo(partner: PartnerRow) {
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  await requireAdminSession();
   const { type } = await searchParams;
   const selectedType = partnerTypeOptions.includes(type as typeof partnerTypeOptions[number]) ? type as PartnerTypeCode : undefined;
   let schemaWarning: string | null = null;

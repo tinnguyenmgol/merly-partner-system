@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { PayoutStatus, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -86,6 +87,7 @@ export async function createPayoutRequestAction() {
 
 export async function reconcilePayoutBeforeApproveAction(formData: FormData) {
   "use server";
+  await requireAdminSession();
   const payoutId = String(formData.get("payoutId") ?? "");
   await syncHaravanOrders();
   await recalculateOpenCommissions();
@@ -107,6 +109,7 @@ export async function refreshPayoutItems(payoutId: string) {
 
 export async function approvePayoutAction(formData: FormData) {
   "use server";
+  await requireAdminSession();
   const payoutId = String(formData.get("payoutId") ?? "");
   const gate = await getLastPayoutReconciliationAt();
   if (!gate.fresh) throw new Error(APPROVAL_GATE_WARNING);
@@ -126,6 +129,7 @@ export async function rejectPayoutAction(formData: FormData) {
 export async function cancelPayoutAction(formData: FormData) {
   "use server"; await closePayout(formData, "cancelled", "payout.cancel"); }
 async function closePayout(formData: FormData, status: "rejected" | "cancelled", action: string) {
+  await requireAdminSession();
   const payoutId = String(formData.get("payoutId") ?? ""); const reason = String(formData.get("reason") ?? "");
   await db.$transaction([db.partnerPayout.update({ where: { id: payoutId }, data: { status, rejectedAt: status === "rejected" ? new Date() : undefined, rejectReason: reason || undefined } }), db.partnerPayoutItem.deleteMany({ where: { payoutId } }), db.adminAuditLog.create({ data: { action, entityType: "PartnerPayout", entityId: payoutId, afterJson: { status, reason }, note: reason || null } })]);
   revalidatePath("/admin/payouts");
@@ -133,6 +137,7 @@ async function closePayout(formData: FormData, status: "rejected" | "cancelled",
 
 export async function markPayoutPaidAction(formData: FormData) {
   "use server";
+  await requireAdminSession();
   const payoutId = String(formData.get("payoutId") ?? "");
   await db.$transaction(async (tx) => {
     const payout = await tx.partnerPayout.findUnique({ where: { id: payoutId }, include: { items: true } });

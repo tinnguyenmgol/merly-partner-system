@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { runHaravanOrderSync } from "@/features/haravan/actions";
 import { HaravanClient } from "@/features/haravan/haravan-client";
@@ -6,6 +7,7 @@ import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function Haravan() {
+  await requireAdminSession();
   const clientStatus = await new HaravanClient().healthCheck();
   let logsWarning: string | null = null;
   const latestLogs = [];

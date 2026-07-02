@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import Link from "next/link";
 import { PartnerOrderRequestStatus, Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -16,6 +17,7 @@ function statusFilter(value?: string): PartnerOrderRequestStatus | undefined {
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireAdminSession();
   const params = await searchParams;
   const status = statusFilter(params.status) ?? (params.status ? undefined : "pending");
   const q = params.q?.trim();

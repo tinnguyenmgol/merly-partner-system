@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -284,6 +285,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
 }
 
 export async function reviewPartnerRegistration(formData: FormData) {
+  await requireAdminSession();
   if (!hasDatabaseUrl()) {
     throw new Error("DATABASE_URL is required for partner review actions.");
   }
@@ -339,6 +341,7 @@ export async function reviewPartnerRegistration(formData: FormData) {
 }
 
 export async function partnerAccountAction(formData: FormData) {
+  await requireAdminSession();
   const partnerId = readString(formData, "partnerId");
   const action = readString(formData, "accountAction") as "generate" | "disable" | "enable";
   if (!partnerId || !["generate", "disable", "enable"].includes(action)) throw new Error("Invalid partner account action.");

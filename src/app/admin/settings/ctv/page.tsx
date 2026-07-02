@@ -1,3 +1,4 @@
+import { requireAdminSession } from "@/features/auth/admin-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { updateCtvProgramSettingsAction } from "@/features/settings-actions";
 import { CTV_POLICY_EXCLUDED_NOTE, getCtvProgramSettings } from "@/features/settings";
@@ -11,6 +12,7 @@ function classRates(settings: Awaited<ReturnType<typeof getCtvProgramSettings>>,
 function threshold(settings: Awaited<ReturnType<typeof getCtvProgramSettings>>, key: "tier_10" | "tier_30") { return settings.ctvNoStockCommissionPolicy.monthlyTierThresholds.find((t) => t.key === key)!.minValidOrders; }
 
 export default async function Page() {
+  await requireAdminSession();
   const settings = await getCtvProgramSettings();
   const emailStatus = getTransactionalEmailStatus();
 
