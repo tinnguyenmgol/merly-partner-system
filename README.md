@@ -88,7 +88,7 @@ SMTP_PORT=465
 SMTP_SECURE=true
 SMTP_USER=noreply@merlyshoes.com
 SMTP_PASSWORD=<mailbox password>
-SMTP_FROM="Merly <noreply@merlyshoes.com>"
+SMTP_FROM=noreply@merlyshoes.com
 APP_BASE_URL=https://partner.merlyshoes.com
 ```
 
