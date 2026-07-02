@@ -36,15 +36,29 @@ export default async function Page() {
         <section className="card" aria-labelledby="system-email-settings-title">
           <h2 id="system-email-settings-title" className="text-xl font-bold text-merly-900">Cấu hình email hệ thống</h2>
           <p className="mt-2 text-sm text-stone-600">Kiểm tra gửi email từ SMTP_FROM trước khi dùng chức năng quên mật khẩu. Mật khẩu SMTP không hiển thị trong admin.</p>
-          <dl className="mt-4 grid gap-2 text-sm">
-            <div>
-              <dt className="text-stone-500">Trạng thái SMTP</dt>
-              <dd className="font-semibold text-merly-900">{emailStatus.configured ? "Đã cấu hình" : "Thiếu cấu hình"}</dd>
-            </div>
-            <div>
-              <dt className="text-stone-500">SMTP_FROM</dt>
-              <dd className="font-semibold text-merly-900">{emailStatus.from ?? "—"}</dd>
-            </div>
+          <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+            Hostinger production hiện nên dùng: SMTP_HOST=smtp.hostinger.com, SMTP_PORT=465, SMTP_SECURE=true, SMTP_USER=noreply@merlyshoes.com, SMTP_FROM=noreply@merlyshoes.com.
+          </p>
+          <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+            {[
+              ["Trạng thái SMTP", emailStatus.configured ? "Đã cấu hình" : "Thiếu cấu hình"],
+              ["SMTP_HOST", emailStatus.host ?? "—"],
+              ["SMTP_PORT", emailStatus.port?.toString() ?? "—"],
+              ["SMTP_SECURE", emailStatus.secure ? "true" : "false"],
+              ["SMTP_USER", emailStatus.user ?? "—"],
+              ["SMTP_FROM", emailStatus.from ?? "—"],
+              ["passwordPresent", emailStatus.passwordPresent ? "true" : "false"],
+              ["passwordLength", emailStatus.passwordLength.toString()],
+              ["passwordHasLeadingOrTrailingWhitespace", emailStatus.passwordHasLeadingOrTrailingWhitespace ? "true" : "false"],
+              ["fromHasLiteralQuotes", emailStatus.fromHasLiteralQuotes ? "true" : "false"],
+              ["fromHasAngleBrackets", emailStatus.fromHasAngleBrackets ? "true" : "false"],
+              ["nodeEnv", emailStatus.nodeEnv ?? "—"],
+            ].map(([label, value]) => (
+              <div className="rounded-xl bg-stone-50 p-3" key={label}>
+                <dt className="text-stone-500">{label}</dt>
+                <dd className="break-all font-semibold text-merly-900">{value}</dd>
+              </div>
+            ))}
           </dl>
           <TestEmailForm />
         </section>
