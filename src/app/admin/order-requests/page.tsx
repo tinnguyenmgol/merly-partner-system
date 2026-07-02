@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { PartnerOrderRequestStatus, Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { adminApproveOrderRequest, adminCancelOrderRequest, adminMatchOrderRequest, adminRejectOrderRequest, ORDER_REQUEST_STATUS_LABELS } from "@/features/order-requests";
+import { adminApproveOrderRequest, adminCancelOrderRequest, adminMatchOrderRequest, adminRejectOrderRequest, adminSyncOrderRequestFromHaravan, ORDER_REQUEST_STATUS_LABELS } from "@/features/order-requests";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
+import { orderCodeVariants } from "@/features/haravan/order-code";
 import { formatVnd } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -67,11 +68,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           <dl className="grid gap-2 md:grid-cols-2"><Info label="Đối tác" value={selected.partner.displayName}/><Info label="Trạng thái" value={ORDER_REQUEST_STATUS_LABELS[selected.status]}/><Info label="Mã đơn yêu cầu" value={selected.orderCode ?? "—"}/><Info label="Giá trị dự kiến" value={selected.expectedAmount ? formatVnd(selected.expectedAmount) : "—"}/><Info label="Gợi ý liên hệ" value={selected.contactHint ?? "—"}/><Info label="Đơn đã match" value={selected.matchedOrder?.orderCode ?? "—"}/></dl>
           <p><b>Ghi chú CTV:</b> {selected.note ?? "—"}</p>
           <p><b>Phản hồi admin:</b> {selected.rejectReason ?? selected.adminNote ?? "—"}</p>
+          <form action={adminSyncOrderRequestFromHaravan} className="flex flex-wrap items-center gap-2 rounded-2xl border border-rose-100 p-4"><input type="hidden" name="requestId" value={selected.id}/><button className="btn-secondary" type="submit">Đồng bộ đơn này từ Haravan</button><span className="text-sm text-stone-500">Chỉ tìm và nhập một đơn theo mã yêu cầu.</span></form>
           {selected.matchedOrder?.partnerId && selected.matchedOrder.partnerId !== selected.partnerId ? <p className="rounded-xl bg-amber-50 p-3 font-semibold text-amber-900">Đơn này đã được gắn với CTV/đối tác khác.</p> : null}
 
           <div className="rounded-2xl border border-rose-100 p-4">
             <h3 className="font-bold text-merly-900">Kết quả tìm đơn (tối đa 20)</h3>
-            <div className="mt-3 grid gap-2">{matches.map((order) => <form action={adminMatchOrderRequest} className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 p-3" key={order.id}><input type="hidden" name="requestId" value={selected.id}/><input type="hidden" name="matchedOrderId" value={order.id}/><span className="font-semibold">{order.orderCode}</span><span>{formatVnd(order.eligibleProductRevenue)}</span><span>{order.partner?.displayName ?? "Chưa gắn"}</span><input className="input max-w-xs" name="adminNote" placeholder="Ghi chú admin"/><button className="btn-secondary" type="submit">Gắn đơn này</button></form>)}</div>
+            <div className="mt-3 grid gap-2">{matches.length === 0 ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Chưa tìm thấy đơn trong dữ liệu đã đồng bộ. Hãy bấm Đồng bộ đơn này từ Haravan.</p> : null}{matches.map((order) => <form action={adminMatchOrderRequest} className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 p-3" key={order.id}><input type="hidden" name="requestId" value={selected.id}/><input type="hidden" name="matchedOrderId" value={order.id}/><span className="font-semibold">{order.orderCode}</span><span>{formatVnd(order.eligibleProductRevenue)}</span><span>{order.partner?.displayName ?? "Chưa gắn"}</span><input className="input max-w-xs" name="adminNote" placeholder="Ghi chú admin"/><button className="btn-secondary" type="submit">Gắn đơn này</button></form>)}</div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -92,6 +94,7 @@ async function loadSelected(id: string) {
   return db.partnerOrderRequest.findUnique({ where: { id }, include: { partner: { select: { displayName: true } }, matchedOrder: { select: { id: true, orderCode: true, partnerId: true } } } });
 }
 async function loadMatches(orderCode?: string | null) {
-  return db.partnerOrder.findMany({ where: orderCode ? { orderCode: { contains: orderCode.replace(/^#/, ""), mode: "insensitive" } } : {}, select: { id: true, orderCode: true, eligibleProductRevenue: true, partner: { select: { displayName: true } } }, orderBy: { createdAt: "desc" }, take: 20 });
+  const variants = orderCodeVariants(orderCode);
+  return db.partnerOrder.findMany({ where: variants.length ? { OR: variants.map((code) => ({ orderCode: { equals: code, mode: "insensitive" as const } })) } : {}, select: { id: true, orderCode: true, eligibleProductRevenue: true, partner: { select: { displayName: true } } }, orderBy: { createdAt: "desc" }, take: 20 });
 }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-stone-500">{label}</dt><dd className="font-semibold text-stone-800">{value}</dd></div>; }

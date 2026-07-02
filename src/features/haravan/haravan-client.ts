@@ -1,3 +1,4 @@
+import { normalizeOrderCode, orderCodeVariants } from "./order-code";
 import type { HaravanOrder } from "./types";
 
 type HaravanOrdersResponse = { orders?: HaravanOrder[] };
@@ -42,7 +43,7 @@ export class HaravanClient {
     return { ok: true, message: "Configured" };
   }
 
-  async listOrders({ limit = 50, page, updatedAtMin, sinceId, order = "updated_at desc" }: { limit?: number; page?: number; updatedAtMin?: Date | string; sinceId?: string | number; order?: string } = {}) {
+  async listOrders({ limit = 50, page, updatedAtMin, sinceId, order = "updated_at desc", query }: { limit?: number; page?: number; updatedAtMin?: Date | string; sinceId?: string | number; order?: string; query?: Record<string, string | number | undefined> } = {}) {
     const health = await this.healthCheck();
     if (!health.ok) throw new Error(health.message);
 
@@ -51,6 +52,9 @@ export class HaravanClient {
     if (page) url.searchParams.set("page", String(page));
     if (updatedAtMin) url.searchParams.set("updated_at_min", updatedAtMin instanceof Date ? updatedAtMin.toISOString() : updatedAtMin);
     if (sinceId) url.searchParams.set("since_id", String(sinceId));
+    for (const [key, value] of Object.entries(query ?? {})) {
+      if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+    }
     url.searchParams.set("order", order);
 
     const response = await fetch(url, {
@@ -70,4 +74,24 @@ export class HaravanClient {
     const payload = (await response.json()) as HaravanOrdersResponse;
     return payload.orders ?? [];
   }
+
+  async findOrderByCode(orderCode: string) {
+    const normalized = normalizeOrderCode(orderCode);
+    if (!normalized) return null;
+
+    const variants = orderCodeVariants(normalized);
+    const batches = await Promise.all([
+      this.listOrders({ limit: 10, query: { name: `#${normalized}` } }),
+      this.listOrders({ limit: 10, query: { order_number: normalized } }),
+      this.listOrders({ limit: 10, query: { query: normalized } }),
+    ]);
+
+    return batches
+      .flat()
+      .find((order) => {
+        const candidates = [order.order_code, order.name, order.order_number, order.id].map((value) => normalizeOrderCode(value));
+        return candidates.some((candidate) => variants.map(normalizeOrderCode).includes(candidate));
+      }) ?? null;
+  }
 }
+

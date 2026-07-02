@@ -100,7 +100,8 @@ function mapStatus(order: HaravanOrder) {
   return financial || fulfillment || "created";
 }
 
-async function importOrder(order: HaravanOrder) {
+export async function importHaravanOrder(order: HaravanOrder) {
+  const protectedAttributionSources = [ATTRIBUTION_SOURCES.MANUAL, ATTRIBUTION_SOURCES.ORDER_REQUEST] as const;
   const items = (order.line_items ?? []).map(mapLineItem);
   const eligibleProductRevenue = calculateEligibleProductRevenue(items);
   const externalOrderId = String(order.id);
@@ -111,18 +112,18 @@ async function importOrder(order: HaravanOrder) {
       include: { attributions: { where: { source: { in: VALID_ATTRIBUTION_SOURCES } } } },
       where: { externalOrderId },
     });
-    const hasManualAttribution = existing?.attributions.some(
-      (attribution) => attribution.source === ATTRIBUTION_SOURCES.MANUAL,
+    const hasProtectedAttribution = existing?.attributions.some(
+      (attribution) => protectedAttributionSources.includes(attribution.source as (typeof protectedAttributionSources)[number]),
     );
-    const attribution = hasManualAttribution
+    const attribution = hasProtectedAttribution
       ? {
           partnerCode: null,
-          source: ATTRIBUTION_SOURCES.MANUAL,
+          source: existing?.attributions.find((row) => protectedAttributionSources.includes(row.source as (typeof protectedAttributionSources)[number]))?.source,
           value: undefined,
-          note: "Existing manual attribution was preserved.",
+          note: "Existing manual/order_request attribution was preserved.",
         }
       : await resolveHaravanAttribution(tx, order);
-    const partnerId = hasManualAttribution
+    const partnerId = hasProtectedAttribution
       ? existing?.partnerId
       : attribution.partnerCode?.partnerId;
 
@@ -184,7 +185,7 @@ async function importOrder(order: HaravanOrder) {
       });
     }
 
-    if (!hasManualAttribution) {
+    if (!hasProtectedAttribution) {
       await tx.partnerOrderAttribution.deleteMany({
         where: {
           orderId: partnerOrder.id,
@@ -214,7 +215,7 @@ async function importOrder(order: HaravanOrder) {
     }
 
     if (
-      !hasManualAttribution &&
+      !hasProtectedAttribution &&
       attribution.partnerCode &&
       existing?.partnerId !== attribution.partnerCode.partnerId
     ) {
@@ -248,6 +249,50 @@ async function importOrder(order: HaravanOrder) {
   return result;
 }
 
+export async function syncHaravanOrderByCode(
+  orderCode: string,
+  client = new HaravanClient(),
+): Promise<HaravanSyncResult & { orderId?: string; found: boolean }> {
+  if (!hasDatabaseUrl()) {
+    return { ok: false, found: false, message: "DATABASE_URL is required for Haravan order sync.", syncedOrders: 0, attributedOrders: 0, skippedOrders: 0 };
+  }
+
+  const log = await db.haravanSyncLog.create({
+    data: { syncType: "order_by_code", status: "running", metadata: { orderCode } },
+  });
+  const summary: SyncSummary = { syncedOrders: 0, attributedOrders: 0, skippedOrders: 0 };
+
+  try {
+    const order = await client.findOrderByCode(orderCode);
+    if (!order) {
+      await db.haravanSyncLog.update({
+        where: { id: log.id },
+        data: { status: "success", finishedAt: new Date(), message: "Order not found by code.", metadata: { orderCode, found: false, ...summary } },
+      });
+      return { ok: true, found: false, message: "Order not found by code.", ...summary, logId: log.id };
+    }
+
+    const result = await importHaravanOrder(order);
+    await recalculateOrderCommission(result.orderId);
+    summary.syncedOrders = 1;
+    if (result.attributed) summary.attributedOrders = 1;
+    if (result.skipped) summary.skippedOrders = 1;
+
+    await db.haravanSyncLog.update({
+      where: { id: log.id },
+      data: { status: "success", finishedAt: new Date(), message: "Imported one Haravan order by code.", metadata: { orderCode, found: true, orderId: result.orderId, ...summary } },
+    });
+    return { ok: true, found: true, message: "Imported one Haravan order by code.", ...summary, logId: log.id, orderId: result.orderId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Haravan sync error";
+    await db.haravanSyncLog.update({
+      where: { id: log.id },
+      data: { status: "failed", finishedAt: new Date(), message, metadata: { orderCode, ...summary } },
+    });
+    return { ok: false, found: false, message, ...summary, logId: log.id };
+  }
+}
+
 export async function syncHaravanOrders(
   client = new HaravanClient(),
 ): Promise<HaravanSyncResult> {
@@ -273,7 +318,7 @@ export async function syncHaravanOrders(
   try {
     const orders = await client.listOrders();
     for (const order of orders) {
-      const result = await importOrder(order);
+      const result = await importHaravanOrder(order);
       await recalculateOrderCommission(result.orderId);
       summary.syncedOrders += 1;
       if (result.attributed) summary.attributedOrders += 1;
