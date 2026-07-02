@@ -6,11 +6,22 @@ import { redirect } from "next/navigation";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { Prisma, type PartnerStatus } from "@prisma/client";
 
+
 const REFERRAL_PARTNER_TYPE = "referral_ctv" as const;
+const PARTNER_TYPE_LABELS = {
+  referral_ctv: "CTV cá nhân",
+  shop_referral: "Shop giới thiệu khách",
+  mini_corner: "Mini corner",
+  agency: "Đại lý",
+} as const;
 const ADMIN_ACTOR_ID = "admin-placeholder";
 
-const DUPLICATE_PHONE_MESSAGE = "Số điện thoại này đã được đăng ký trong hệ thống CTV Merly.";
-const DUPLICATE_EMAIL_MESSAGE = "Email này đã được đăng ký trong hệ thống CTV Merly.";
+type RegistrationPartnerType = keyof typeof PARTNER_TYPE_LABELS;
+
+const REGISTRATION_PARTNER_TYPES = Object.keys(PARTNER_TYPE_LABELS) as RegistrationPartnerType[];
+
+const DUPLICATE_PHONE_MESSAGE = "Số điện thoại này đã được đăng ký trong hệ thống đối tác Merly.";
+const DUPLICATE_EMAIL_MESSAGE = "Email này đã được đăng ký trong hệ thống đối tác Merly.";
 const DUPLICATE_GENERIC_MESSAGE = "Thông tin đăng ký đã tồn tại. Vui lòng kiểm tra lại số điện thoại hoặc email.";
 
 export type PartnerRegistrationState = {
@@ -19,27 +30,42 @@ export type PartnerRegistrationState = {
   values: Record<string, string>;
 };
 
+const registrationFields = [
+  "partnerTypeCode",
+  "fullName",
+  "contactName",
+  "shopName",
+  "businessName",
+  "phone",
+  "email",
+  "zalo",
+  "storeAddress",
+  "warehouseAddress",
+  "cityProvince",
+  "salesChannel",
+  "socialLink",
+  "customerSegment",
+  "displayAreaNote",
+  "expectedDisplayQuantity",
+  "businessModelNote",
+  "expectedOpeningOrderAmount",
+  "coverageArea",
+  "taxCode",
+  "note",
+  "bankAccountName",
+  "bankName",
+  "bankAccountNumber",
+] as const;
+
 function readValues(formData: FormData) {
   const values: Record<string, string> = {};
 
-  for (const key of [
-    "fullName",
-    "phone",
-    "email",
-    "zalo",
-    "area",
-    "sellingChannel",
-    "socialLink",
-    "experienceNote",
-    "bankAccountHolder",
-    "bankName",
-    "bankAccountNumber",
-  ]) {
+  for (const key of registrationFields) {
     values[key] = readString(formData, key);
   }
 
-  if (formData.get("acceptedPolicy") === "on") {
-    values.acceptedPolicy = "on";
+  for (const key of ["hasOfflineStore", "hasLivestream", "agreePolicy"]) {
+    if (formData.get(key) === "on") values[key] = "on";
   }
 
   return values;
@@ -95,6 +121,13 @@ function optionalString(formData: FormData, key: string) {
   return value.length > 0 ? value : undefined;
 }
 
+function optionalInt(formData: FormData, key: string) {
+  const value = optionalString(formData, key);
+  if (!value) return undefined;
+  const parsed = Number(value.replace(/[^\d]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function normalizePartnerCode(input: string) {
   return input
     .normalize("NFD")
@@ -110,17 +143,36 @@ function buildDefaultPartnerCode(fullName: string, phone?: string) {
   return `MERLY${namePart}${phonePart}`.slice(0, 24);
 }
 
-async function ensureReferralPartnerType() {
+async function ensurePartnerType(code: RegistrationPartnerType) {
   return db.partnerType.upsert({
-    where: { code: REFERRAL_PARTNER_TYPE },
-    update: { enabled: true },
+    where: { code },
+    update: { enabled: true, name: PARTNER_TYPE_LABELS[code] },
     create: {
-      code: REFERRAL_PARTNER_TYPE,
-      name: "Referral CTV",
-      description: "CTV không ôm hàng; Merly xử lý hàng hóa, giao hàng và thu tiền.",
+      code,
+      name: PARTNER_TYPE_LABELS[code],
+      description: code === REFERRAL_PARTNER_TYPE ? "CTV không ôm hàng; Merly xử lý hàng hóa, giao hàng và thu tiền." : "Hồ sơ đối tác Merly đang chờ xét duyệt.",
       enabled: true,
     },
   });
+}
+
+function getDisplayName(typeCode: RegistrationPartnerType, values: Record<string, string>) {
+  if (typeCode === "agency") return values.businessName || values.shopName || values.contactName;
+  if (typeCode === "shop_referral" || typeCode === "mini_corner") return values.shopName || values.contactName;
+  return values.fullName || values.contactName;
+}
+
+function validateRegistration(values: Record<string, string>) {
+  const fieldErrors: Partial<Record<string, string>> = {};
+  const typeCode = values.partnerTypeCode as RegistrationPartnerType;
+
+  if (!REGISTRATION_PARTNER_TYPES.includes(typeCode)) fieldErrors.partnerTypeCode = "Vui lòng chọn loại hình hợp tác.";
+  if (!values.contactName && !values.fullName) fieldErrors.contactName = "Vui lòng nhập người liên hệ.";
+  if (!values.phone) fieldErrors.phone = "Vui lòng nhập số điện thoại.";
+  if (!values.agreePolicy) fieldErrors.agreePolicy = "Vui lòng đồng ý chính sách đối tác.";
+  if (["shop_referral", "mini_corner", "agency"].includes(typeCode) && !values.storeAddress && !values.warehouseAddress) fieldErrors.storeAddress = "Vui lòng nhập địa chỉ cửa hàng/kho.";
+
+  return fieldErrors;
 }
 
 async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: string, requestedCode: string) {
@@ -145,14 +197,16 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
     redirect("/dang-ky?status=database-missing");
   }
 
-  const fullName = values.fullName;
+  const fieldErrors = validateRegistration(values);
+  if (Object.keys(fieldErrors).length > 0) {
+    return { message: "Vui lòng kiểm tra các thông tin bắt buộc.", fieldErrors, values };
+  }
+
+  const partnerTypeCode = values.partnerTypeCode as RegistrationPartnerType;
+  const contactName = values.contactName || values.fullName;
   const phone = normalizePartnerPhone(values.phone);
   const email = normalizePartnerEmail(values.email);
-  const acceptedPolicy = formData.get("acceptedPolicy") === "on";
-
-  if (!fullName || !phone || !acceptedPolicy) {
-    redirect("/dang-ky?status=missing-required");
-  }
+  const displayName = getDisplayName(partnerTypeCode, { ...values, contactName });
 
   const existingPartner = await db.partner.findFirst({
     where: {
@@ -169,7 +223,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
     return duplicateRegistrationState(DUPLICATE_EMAIL_MESSAGE, "email", values);
   }
 
-  const partnerType = await ensureReferralPartnerType();
+  const partnerType = await ensurePartnerType(partnerTypeCode);
 
   try {
     await db.partner.create({
@@ -178,16 +232,32 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
         status: "pending",
         email,
         phone,
-        displayName: fullName,
+        displayName,
         profile: {
           create: {
-            fullName,
+            fullName: contactName,
+            contactName,
+            shopName: optionalString(formData, "shopName"),
+            businessName: optionalString(formData, "businessName"),
+            storeAddress: optionalString(formData, "storeAddress"),
+            warehouseAddress: optionalString(formData, "warehouseAddress"),
             zalo: optionalString(formData, "zalo"),
-            area: optionalString(formData, "area"),
-            sellingChannel: optionalString(formData, "sellingChannel"),
+            area: optionalString(formData, "cityProvince"),
+            cityProvince: optionalString(formData, "cityProvince"),
+            sellingChannel: optionalString(formData, "salesChannel"),
+            salesChannel: optionalString(formData, "salesChannel"),
             socialLink: optionalString(formData, "socialLink"),
-            experienceNote: optionalString(formData, "experienceNote"),
-            bankAccountHolder: optionalString(formData, "bankAccountHolder"),
+            customerSegment: optionalString(formData, "customerSegment"),
+            displayAreaNote: optionalString(formData, "displayAreaNote"),
+            expectedDisplayQuantity: optionalInt(formData, "expectedDisplayQuantity"),
+            businessModelNote: optionalString(formData, "businessModelNote"),
+            expectedOpeningOrderAmount: optionalInt(formData, "expectedOpeningOrderAmount"),
+            coverageArea: optionalString(formData, "coverageArea"),
+            taxCode: optionalString(formData, "taxCode"),
+            hasOfflineStore: formData.get("hasOfflineStore") === "on" ? true : undefined,
+            hasLivestream: formData.get("hasLivestream") === "on" ? true : undefined,
+            experienceNote: optionalString(formData, "note"),
+            bankAccountHolder: optionalString(formData, "bankAccountName"),
             bankName: optionalString(formData, "bankName"),
             bankAccountNumber: optionalString(formData, "bankAccountNumber"),
           },

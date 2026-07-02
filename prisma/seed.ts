@@ -8,6 +8,7 @@ const partnerTypeCodes = [
   "mini_corner",
   "wholesale_agent",
   "shop_referral",
+  "agency",
   "affiliate_creator",
 ] as const;
 
@@ -17,7 +18,7 @@ async function main() {
       prisma.partnerType.upsert({
         where: { code },
         update: {},
-        create: { code, name: code, enabled: code === "referral_ctv" },
+        create: { code, name: code, enabled: ["referral_ctv", "shop_referral", "mini_corner", "agency"].includes(code) },
       }),
     ),
   );
