@@ -1,8 +1,10 @@
+import crypto from "crypto";
 import nodemailer from "nodemailer";
 
 type EmailInput = { to: string; subject: string; html: string; text: string };
+export type SmtpAuthMethod = "DEFAULT" | "LOGIN";
 export type SmtpErrorStage = "verify" | "sendMail";
-export type SafeSmtpErrorDetails = { stage: SmtpErrorStage; name: string; code?: string; command?: string; responseCode?: number; response?: string; message: string };
+export type SafeSmtpErrorDetails = { stage: SmtpErrorStage; name: string; code?: string; command?: string; responseCode?: number; response?: string; message: string; authMethod: SmtpAuthMethod };
 type EmailResult = { ok: true; skipped: false; messageId?: string } | { ok: false; skipped: true; reason: string } | { ok: false; skipped: false; error: string; details?: SafeSmtpErrorDetails };
 type VerifyResult = { ok: true; skipped: false } | { ok: false; skipped: true; reason: string } | { ok: false; skipped: false; error: string; details: SafeSmtpErrorDetails };
 
@@ -15,7 +17,10 @@ export type SmtpRuntimeDiagnostics = {
   user: string | null;
   from: string | null;
   passwordPresent: boolean;
+  passwordLength: number;
   passwordTrimWouldChange: boolean;
+  passwordSha256Prefix: string | null;
+  authMethod: SmtpAuthMethod;
   fromHasLiteralQuotes: boolean;
   fromHasAngleBrackets: boolean;
   nodeEnv: string | null;
@@ -35,14 +40,21 @@ function getSmtpConfig(): SmtpConfig | null {
   return { host, port, secure, user, pass, from };
 }
 
-function createTransactionalEmailTransport(config: SmtpConfig) {
+function normalizeAuthMethod(authMethod?: SmtpAuthMethod): SmtpAuthMethod {
+  return authMethod === "DEFAULT" ? "DEFAULT" : "LOGIN";
+}
+
+function createTransactionalEmailTransport(config: SmtpConfig, requestedAuthMethod?: SmtpAuthMethod) {
   const { host, port, secure, user, pass } = config;
+  const authMethod = normalizeAuthMethod(requestedAuthMethod);
 
   return nodemailer.createTransport({
     host,
     port,
     secure,
     auth: { user, pass },
+    ...(authMethod === "LOGIN" ? { authMethod: "LOGIN" } : {}),
+    name: "partner.merlyshoes.com",
     requireTLS: port === 587,
     tls: {
       servername: host,
@@ -51,7 +63,7 @@ function createTransactionalEmailTransport(config: SmtpConfig) {
   });
 }
 
-export function getSmtpRuntimeDiagnostics(): SmtpRuntimeDiagnostics {
+export function getSmtpRuntimeDiagnostics(authMethod?: SmtpAuthMethod): SmtpRuntimeDiagnostics {
   const password = process.env.SMTP_PASSWORD ?? "";
   const rawFrom = process.env.SMTP_FROM ?? "";
   const port = Number(process.env.SMTP_PORT || 465);
@@ -61,6 +73,7 @@ export function getSmtpRuntimeDiagnostics(): SmtpRuntimeDiagnostics {
   const user = process.env.SMTP_USER?.trim() || null;
   const from = rawFrom.trim() || user;
   const passwordTrimWouldChange = password.length > 0 && password.trim() !== password;
+  const passwordSha256Prefix = password.length > 0 ? crypto.createHash("sha256").update(password).digest("hex").slice(0, 8) : null;
 
   return {
     configured: Boolean(getSmtpConfig()),
@@ -70,7 +83,10 @@ export function getSmtpRuntimeDiagnostics(): SmtpRuntimeDiagnostics {
     user,
     from,
     passwordPresent: password.length > 0,
+    passwordLength: password.length,
     passwordTrimWouldChange,
+    passwordSha256Prefix,
+    authMethod: normalizeAuthMethod(authMethod),
     fromHasLiteralQuotes: rawFrom.includes('"') || rawFrom.includes("'"),
     fromHasAngleBrackets: rawFrom.includes("<") || rawFrom.includes(">"),
     nodeEnv: process.env.NODE_ENV ?? null,
@@ -87,7 +103,7 @@ function sanitizeSmtpText(value: string | undefined) {
     .slice(0, 500);
 }
 
-function toSafeSmtpErrorDetails(error: unknown, stage: SmtpErrorStage): SafeSmtpErrorDetails {
+function toSafeSmtpErrorDetails(error: unknown, stage: SmtpErrorStage, authMethod: SmtpAuthMethod): SafeSmtpErrorDetails {
   const maybe = error as Partial<Error> & { code?: unknown; command?: unknown; responseCode?: unknown; response?: unknown };
   return {
     stage,
@@ -97,6 +113,7 @@ function toSafeSmtpErrorDetails(error: unknown, stage: SmtpErrorStage): SafeSmtp
     responseCode: typeof maybe.responseCode === "number" ? maybe.responseCode : undefined,
     response: typeof maybe.response === "string" ? sanitizeSmtpText(maybe.response) : undefined,
     message: sanitizeSmtpText(maybe.message) || "Unknown SMTP error",
+    authMethod,
   };
 }
 
@@ -105,31 +122,33 @@ export function getTransactionalEmailStatus() {
   return { ...diagnostics };
 }
 
-export function logSmtpTestConfig() {
-  const { host, port, secure, user, from, passwordPresent, passwordTrimWouldChange, fromHasLiteralQuotes, fromHasAngleBrackets } = getSmtpRuntimeDiagnostics();
-  console.info("[smtp-test] config", { host, port, secure, user, from, passwordPresent, passwordTrimWouldChange, fromHasLiteralQuotes, fromHasAngleBrackets });
+export function logSmtpTestConfig(authMethod?: SmtpAuthMethod) {
+  const { host, port, secure, user, from, passwordPresent, passwordLength, passwordTrimWouldChange, passwordSha256Prefix, authMethod: usedAuthMethod } = getSmtpRuntimeDiagnostics(authMethod);
+  console.info("[smtp-test] config", { host, port, secure, user, from, passwordPresent, passwordLength, passwordTrimWouldChange, passwordSha256Prefix, authMethod: usedAuthMethod });
 }
 
-export async function verifyTransactionalEmailTransport(): Promise<VerifyResult> {
+export async function verifyTransactionalEmailTransport(authMethod?: SmtpAuthMethod): Promise<VerifyResult> {
   const config = getSmtpConfig();
+  const usedAuthMethod = normalizeAuthMethod(authMethod);
   if (!config) return { ok: false, skipped: true, reason: "SMTP env is incomplete; verify skipped." };
   try {
-    await createTransactionalEmailTransport(config).verify();
+    await createTransactionalEmailTransport(config, usedAuthMethod).verify();
     return { ok: true, skipped: false };
   } catch (error) {
-    const details = toSafeSmtpErrorDetails(error, "verify");
+    const details = toSafeSmtpErrorDetails(error, "verify", usedAuthMethod);
     return { ok: false, skipped: false, error: details.message, details };
   }
 }
 
 export async function sendTransactionalEmail(input: EmailInput): Promise<EmailResult> {
   const config = getSmtpConfig();
+  const usedAuthMethod = normalizeAuthMethod();
   if (!config) return { ok: false, skipped: true, reason: "SMTP env is incomplete; email delivery skipped." };
-  const transporter = createTransactionalEmailTransport(config);
+  const transporter = createTransactionalEmailTransport(config, usedAuthMethod);
   try {
     await transporter.verify();
   } catch (error) {
-    const details = toSafeSmtpErrorDetails(error, "verify");
+    const details = toSafeSmtpErrorDetails(error, "verify", usedAuthMethod);
     return { ok: false, skipped: false, error: details.message, details };
   }
   try {
@@ -142,7 +161,7 @@ export async function sendTransactionalEmail(input: EmailInput): Promise<EmailRe
     });
     return { ok: true, skipped: false, messageId: info.messageId };
   } catch (error) {
-    const details = toSafeSmtpErrorDetails(error, "sendMail");
+    const details = toSafeSmtpErrorDetails(error, "sendMail", usedAuthMethod);
     return { ok: false, skipped: false, error: details.message, details };
   }
 }

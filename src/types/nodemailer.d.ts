@@ -17,6 +17,8 @@ declare module "nodemailer" {
     port: number;
     secure: boolean;
     auth: { user: string; pass: string };
+    authMethod?: "LOGIN";
+    name?: string;
     requireTLS: boolean;
     tls: { servername: string; minVersion: "TLSv1.2" };
   }): Transporter;

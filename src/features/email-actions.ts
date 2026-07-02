@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { logSmtpTestConfig, sendTransactionalEmail, verifyTransactionalEmailTransport, type SafeSmtpErrorDetails } from "@/lib/mail";
+import { logSmtpTestConfig, sendTransactionalEmail, verifyTransactionalEmailTransport, type SmtpAuthMethod, type SafeSmtpErrorDetails } from "@/lib/mail";
 
 export type TestEmailState = { message?: string; ok?: boolean; details?: SafeSmtpErrorDetails };
 
@@ -10,17 +10,20 @@ function isEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value
 function formatErrorMessage(prefix: string, details: SafeSmtpErrorDetails) {
   const code535 = details.responseCode === 535;
   const explanation = code535
-    ? " SMTP xác thực thất bại. App đã kết nối được SMTP nhưng server từ chối đăng nhập. Kiểm tra SMTP_USER, SMTP_PASSWORD thực tế app đang đọc, khoảng trắng ở mật khẩu, và restart app sau khi đổi env."
+    ? details.authMethod === "LOGIN"
+      ? " Hostinger vẫn từ chối đăng nhập SMTP sau khi ép AUTH LOGIN. Vui lòng kiểm tra lại mailbox/password bằng Apple Mail hoặc Thunderbird. Nếu mail client cũng lỗi, cần liên hệ Hostinger."
+      : " SMTP xác thực thất bại. App đã kết nối được SMTP nhưng server từ chối đăng nhập. Kiểm tra SMTP_USER, SMTP_PASSWORD thực tế app đang đọc, khoảng trắng ở mật khẩu, và restart app sau khi đổi env."
     : "";
-  return `${prefix}: stage=${details.stage}; name=${details.name}; code=${details.code ?? "—"}; command=${details.command ?? "—"}; responseCode=${details.responseCode ?? "—"}; response=${details.response ?? "—"}; message=${details.message}.${explanation}`;
+  return `${prefix}: authMethod=${details.authMethod}; stage=${details.stage}; name=${details.name}; code=${details.code ?? "—"}; command=${details.command ?? "—"}; responseCode=${details.responseCode ?? "—"}; response=${details.response ?? "—"}; message=${details.message}.${explanation}`;
 }
 
 export async function sendTestEmailAction(_prev: TestEmailState, formData: FormData): Promise<TestEmailState> {
   const intent = String(formData.get("intent") ?? "send");
-  logSmtpTestConfig();
+  const authMethod: SmtpAuthMethod = formData.get("authMethod") === "DEFAULT" ? "DEFAULT" : "LOGIN";
+  logSmtpTestConfig(authMethod);
 
   if (intent === "verify") {
-    const verify = await verifyTransactionalEmailTransport();
+    const verify = await verifyTransactionalEmailTransport(authMethod);
     revalidatePath("/admin/settings/ctv");
     if (verify.ok) return { ok: true, message: "SMTP verify thành công." };
     if (verify.skipped) return { ok: false, message: `Chưa kiểm tra SMTP verify: ${verify.reason}` };
