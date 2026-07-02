@@ -1,12 +1,14 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { updateCtvProgramSettingsAction } from "@/features/settings-actions";
-import { getCtvProgramSettings } from "@/features/settings";
+import { CTV_POLICY_EXCLUDED_NOTE, getCtvProgramSettings } from "@/features/settings";
 import { formatVnd } from "@/lib/money";
 import { getTransactionalEmailStatus } from "@/lib/mail";
 import { TestEmailForm } from "./test-email-form";
 
 export const dynamic = "force-dynamic";
 function percent(bps: number) { return String(bps / 100); }
+function classRates(settings: Awaited<ReturnType<typeof getCtvProgramSettings>>, key: "normal_price" | "merly_discount_5_to_10") { return settings.ctvNoStockCommissionPolicy.orderClasses.find((c) => c.key === key)!; }
+function threshold(settings: Awaited<ReturnType<typeof getCtvProgramSettings>>, key: "tier_10" | "tier_30") { return settings.ctvNoStockCommissionPolicy.monthlyTierThresholds.find((t) => t.key === key)!.minValidOrders; }
 
 export default async function Page() {
   const settings = await getCtvProgramSettings();
@@ -21,7 +23,19 @@ export default async function Page() {
           <p className="mt-2 text-stone-600">Cấu hình nội dung công khai, điều kiện hoa hồng và thanh toán cho CTV cá nhân.</p>
           <form action={updateCtvProgramSettingsAction} className="mt-6 grid gap-5">
             <label className="flex items-center gap-3 font-semibold"><input name="ctvProgramEnabled" type="checkbox" defaultChecked={settings.ctvProgramEnabled}/> Bật chương trình CTV</label>
-            <label className="grid gap-2">Hoa hồng mặc định (%)<input className="input" name="defaultCommissionRatePercent" type="number" step="0.01" min="0" defaultValue={percent(settings.defaultCommissionRateBps)}/></label>
+            <label className="flex items-center gap-3 font-semibold"><input name="ctvNoStockCommissionPolicyEnabled" type="checkbox" defaultChecked={settings.ctvNoStockCommissionPolicy.enabled}/> Bật thưởng hoa hồng theo hiệu suất tháng</label>
+            <div className="grid gap-3 rounded-2xl border border-rose-100 p-4">
+              <h2 className="text-xl font-bold text-merly-900">Bảng hoa hồng CTV không ôm hàng</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2">Threshold 1: từ bao nhiêu đơn hợp lệ/tháng<input className="input" name="threshold_tier_10" type="number" min="1" defaultValue={threshold(settings, "tier_10")}/></label>
+                <label className="grid gap-2">Threshold 2: từ bao nhiêu đơn hợp lệ/tháng<input className="input" name="threshold_tier_30" type="number" min="1" defaultValue={threshold(settings, "tier_30")}/></label>
+              </div>
+              <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="text-stone-500"><tr><th className="py-2">Loại đơn</th><th>Dưới {threshold(settings, "tier_10")} đơn/tháng</th><th>Từ {threshold(settings, "tier_10")} đơn/tháng</th><th>Từ {threshold(settings, "tier_30")} đơn/tháng</th></tr></thead><tbody>
+                <tr className="border-t border-stone-100"><td className="py-3 font-semibold">Bán đúng giá Merly, không dùng mã giảm giá</td><td><input className="input w-24" name="normal_base_percent" type="number" step="0.01" min="0" defaultValue={percent(classRates(settings, "normal_price").ratesByTierBps.base)}/> %</td><td><input className="input w-24" name="normal_tier_10_percent" type="number" step="0.01" min="0" defaultValue={percent(classRates(settings, "normal_price").ratesByTierBps.tier_10)}/> %</td><td><input className="input w-24" name="normal_tier_30_percent" type="number" step="0.01" min="0" defaultValue={percent(classRates(settings, "normal_price").ratesByTierBps.tier_30)}/> %</td></tr>
+                <tr className="border-t border-stone-100"><td className="py-3 font-semibold">Có mã giảm giá / ưu đãi thành viên từ 5%–10%</td><td><input className="input w-24" name="discounted_base_percent" type="number" step="0.01" min="0" defaultValue={percent(classRates(settings, "merly_discount_5_to_10").ratesByTierBps.base)}/> %</td><td><input className="input w-24" name="discounted_tier_10_percent" type="number" step="0.01" min="0" defaultValue={percent(classRates(settings, "merly_discount_5_to_10").ratesByTierBps.tier_10)}/> %</td><td><input className="input w-24" name="discounted_tier_30_percent" type="number" step="0.01" min="0" defaultValue={percent(classRates(settings, "merly_discount_5_to_10").ratesByTierBps.tier_30)}/> %</td></tr>
+              </tbody></table></div>
+              <p className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">{CTV_POLICY_EXCLUDED_NOTE}</p>
+            </div>
             <label className="grid gap-2">Số tiền thanh toán tối thiểu<input className="input" name="minimumPayoutAmount" type="number" min="0" step="1000" defaultValue={settings.minimumPayoutAmount}/><span className="text-sm text-stone-500">Hiện tại: {formatVnd(settings.minimumPayoutAmount)}</span></label>
             <label className="grid gap-2">Số ngày chờ đối soát<input className="input" name="reconciliationWaitDays" type="number" min="0" defaultValue={settings.reconciliationWaitDays}/></label>
             <label className="grid gap-2">Zalo/SĐT hỗ trợ<input className="input" name="supportPhoneOrZalo" defaultValue={settings.supportPhoneOrZalo}/></label>

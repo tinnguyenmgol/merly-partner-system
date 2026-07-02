@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
+import { getCtvProgramSettings, type CtvCommissionTierKey } from "@/features/settings";
 
 export const RECONCILIATION_WAIT_DAYS = 7;
 export const DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS = 1000;
@@ -70,6 +71,9 @@ export type CommissionDecision = {
   commissionRateBps: number | null;
   reason: string;
   availableAt: Date | null;
+  monthlyValidOrderCount?: number;
+  appliedTier?: CtvCommissionTierKey;
+  orderClass?: string;
 };
 export type RecalculateOrderCommissionResult = {
   orderId: string;
@@ -80,6 +84,42 @@ export type RecalculateOrderCommissionResult = {
 
 export function formatCommissionRate(rateBps: number | null | undefined) {
   return rateBps == null ? "—" : `${rateBps / 100}%`;
+}
+
+export function calculateOrderDiscountBps(order: Pick<PartnerOrder, "eligibleProductRevenue" | "discountAmount">) {
+  const listedProductRevenue = Math.max(order.eligibleProductRevenue, 0) + Math.max(order.discountAmount, 0);
+  if (listedProductRevenue <= 0) return 0;
+  return Math.round((Math.max(order.discountAmount, 0) * BASIS_POINTS) / listedProductRevenue);
+}
+
+export function getCtvMonthlyTier(validOrderCount: number, thresholds = [{ key: "base" as const, minValidOrders: 0 }, { key: "tier_10" as const, minValidOrders: 10 }, { key: "tier_30" as const, minValidOrders: 30 }]): CtvCommissionTierKey {
+  return thresholds.reduce<CtvCommissionTierKey>((selected, tier) => validOrderCount >= tier.minValidOrders ? tier.key : selected, "base");
+}
+
+export function getCtvTierLabel(tier: CtvCommissionTierKey) {
+  if (tier === "tier_30") return "mốc từ 30 đơn";
+  if (tier === "tier_10") return "mốc từ 10 đơn";
+  return "mốc dưới 10 đơn";
+}
+
+export function classifyCtvOrderForCommission(order: Pick<PartnerOrder, "eligibleProductRevenue" | "discountAmount">) {
+  const discountBps = calculateOrderDiscountBps(order);
+  if (discountBps === 0) return { key: "normal_price", discountBps } as const;
+  if (discountBps >= 500 && discountBps <= 1000) return { key: "merly_discount_5_to_10", discountBps } as const;
+  return { key: "over_policy_or_unknown", discountBps } as const;
+}
+
+export function isCtvOrderValidForMonthlyTier(order: CommissionOrderSnapshot & Pick<PartnerOrder, "discountAmount">) {
+  if (!isOrderCommissionEligible(order)) return false;
+  return classifyCtvOrderForCommission(order).key !== "over_policy_or_unknown";
+}
+
+export function describeCommissionLedger(ledger: Pick<PartnerCommissionLedger, "commissionRateBps" | "reason">) {
+  const reason = ledger.reason ?? "";
+  if (reason.startsWith("Không tính hoa hồng") || reason.includes("vượt chính sách") || reason.includes("hủy") || reason.includes("hoàn") || reason.includes("từ chối")) return reason;
+  const orderClass = reason.includes("Có ưu đãi 5%–10%") ? "Có ưu đãi 5%–10%" : reason.includes("Bán đúng giá Merly") ? "Bán đúng giá Merly" : null;
+  const tier = reason.match(/mốc (dưới 10 đơn|từ 10 đơn|từ 30 đơn)/)?.[0];
+  return [orderClass, tier, formatCommissionRate(ledger.commissionRateBps)].filter(Boolean).join(" · ") || reason || "—";
 }
 export function getPublicStatementTokenHash(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -194,9 +234,9 @@ export function decideCommissionForOrder(
   if (blockReason)
     return {
       status: "rejected",
-      amount,
-      commissionRateBps: rate,
-      reason: blockReason,
+      amount: 0,
+      commissionRateBps: 0,
+      reason: `Không tính hoa hồng: ${blockReason}`,
       availableAt: null,
     };
   if (base <= 0)
@@ -277,13 +317,39 @@ export async function recalculateOrderCommission(
         decision: null,
         skippedReason: `Order attribution source is not commissionable for ${partnerTypeCode}.`,
       };
+    const existing = order.ledgerEntries[0];
     const defaultRate = partnerTypeCode === "shop_referral" ? DEFAULT_SHOP_REFERRAL_COMMISSION_RATE_BPS : DEFAULT_REFERRAL_CTV_COMMISSION_RATE_BPS;
-    const typeRule = await tx.partnerCommissionRule.findFirst({
+    const typeRule = partnerTypeCode === "shop_referral" ? await tx.partnerCommissionRule.findFirst({
       where: { active: true, partnerTypeId: order.partner!.partnerTypeId, commissionRateBps: { not: null } },
       orderBy: { createdAt: "asc" },
-    });
-    const commissionRateBps = primaryAttribution.partnerCode?.commissionRateBps ?? typeRule?.commissionRateBps ?? defaultRate;
-    const existing = order.ledgerEntries[0];
+    }) : null;
+    let commissionRateBps = primaryAttribution.partnerCode?.commissionRateBps ?? typeRule?.commissionRateBps ?? defaultRate;
+    let monthlyValidOrderCount: number | undefined;
+    let appliedTier: CtvCommissionTierKey | undefined;
+    let orderClassKey: string | undefined;
+    let policyReasonPrefix: string | undefined;
+    if (partnerTypeCode === "referral_ctv") {
+      const settings = await getCtvProgramSettings();
+      const policy = settings.ctvNoStockCommissionPolicy;
+      const monthStart = new Date(Date.UTC(order.createdAt.getUTCFullYear(), order.createdAt.getUTCMonth(), 1));
+      const monthEnd = new Date(Date.UTC(order.createdAt.getUTCFullYear(), order.createdAt.getUTCMonth() + 1, 1));
+      const sameMonthOrders = await tx.partnerOrder.findMany({
+        where: { partnerId: order.partnerId, id: { not: order.id }, createdAt: { gte: monthStart, lt: monthEnd } },
+      });
+      monthlyValidOrderCount = sameMonthOrders.filter(isCtvOrderValidForMonthlyTier).length;
+      appliedTier = getCtvMonthlyTier(monthlyValidOrderCount, policy.monthlyTierThresholds);
+      const classification = classifyCtvOrderForCommission(order);
+      orderClassKey = classification.key;
+      if (classification.key === "over_policy_or_unknown") {
+        commissionRateBps = 0;
+        policyReasonPrefix = "Tổng ưu đãi vượt chính sách CTV, cần Merly xét chương trình riêng.";
+      } else {
+        const orderClass = policy.orderClasses.find((c) => c.key === classification.key);
+        commissionRateBps = orderClass?.ratesByTierBps[appliedTier] ?? defaultRate;
+        const classLabel = classification.key === "normal_price" ? "Bán đúng giá Merly" : "Có ưu đãi 5%–10%";
+        policyReasonPrefix = `${classLabel} · ${getCtvTierLabel(appliedTier)} · ${formatCommissionRate(commissionRateBps)} · ${monthlyValidOrderCount} đơn hợp lệ tháng này tại thời điểm tính`;
+      }
+    }
     if (existing && PAID_LEDGER_STATUSES.has(existing.status)) {
       if (isOrderCancelledOrReturned(order)) {
         const priorManualReview = await tx.adminAuditLog.findFirst({
@@ -317,7 +383,16 @@ export async function recalculateOrderCommission(
           "Paid ledger entries are immutable and were not overwritten. Đơn đã hủy sau khi hoa hồng đã thanh toán - cần đối soát thủ công.",
       };
     }
-    const decision = decideCommissionForOrder(order, now, commissionRateBps);
+    let decision = decideCommissionForOrder(order, now, commissionRateBps);
+    if (partnerTypeCode === "referral_ctv") {
+      if (policyReasonPrefix?.includes("vượt chính sách")) {
+        decision = { status: "on_hold", amount: 0, commissionRateBps: 0, reason: policyReasonPrefix, availableAt: null, monthlyValidOrderCount, appliedTier, orderClass: orderClassKey };
+      } else if (!decision.reason.startsWith("Không tính hoa hồng")) {
+        decision = { ...decision, reason: `${policyReasonPrefix}. ${decision.reason}`, monthlyValidOrderCount, appliedTier, orderClass: orderClassKey };
+      } else {
+        decision = { ...decision, monthlyValidOrderCount, appliedTier, orderClass: orderClassKey };
+      }
+    }
     const data = {
       partnerId: order.partnerId,
       orderId: order.id,
@@ -364,6 +439,9 @@ export async function recalculateOrderCommission(
             commissionRateBps: ledger.commissionRateBps,
             availableAt: ledger.availableAt,
             reason: ledger.reason,
+            monthlyValidOrderCount: decision.monthlyValidOrderCount,
+            appliedTier: decision.appliedTier,
+            orderClass: decision.orderClass,
           },
           note: "Manual idempotent commission recalculation. Cancelled/returned Haravan orders are rejected and excluded from active commission.",
         },
