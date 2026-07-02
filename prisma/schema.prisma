@@ -12,6 +12,7 @@ enum PartnerTypeCode {
   mini_corner
   wholesale_agent
   shop_referral
+  agency
   affiliate_creator
 }
 
@@ -107,6 +108,22 @@ model PartnerProfile {
   id                String  @id @default(cuid())
   partnerId         String  @unique
   fullName          String
+  contactName       String?
+  shopName          String?
+  businessName      String?
+  storeAddress      String?
+  warehouseAddress  String?
+  cityProvince      String?
+  salesChannel      String?
+  customerSegment   String?
+  displayAreaNote   String?
+  expectedDisplayQuantity Int?
+  businessModelNote String?
+  expectedOpeningOrderAmount Int?
+  coverageArea      String?
+  taxCode           String?
+  hasOfflineStore   Boolean?
+  hasLivestream     Boolean?
   zalo              String?
   area              String?
   sellingChannel    String?

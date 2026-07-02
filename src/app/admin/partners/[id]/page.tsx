@@ -31,6 +31,35 @@ function hasInconsistentCodeConfig(code: { codePurpose: string; source: string }
   return code.codePurpose === "affiliate_tracking" && ["discount_code", "shop_discount_code"].includes(code.source);
 }
 
+function typeLabel(code: string) {
+  return { referral_ctv: "CTV cá nhân", shop_referral: "Shop giới thiệu khách", mini_corner: "Mini corner", agency: "Đại lý", wholesale_agent: "Wholesale agent", affiliate_creator: "Affiliate creator" }[code] ?? code;
+}
+
+type PartnerDetailProfile = {
+  fullName?: string | null;
+  contactName?: string | null;
+  shopName?: string | null;
+  businessName?: string | null;
+  storeAddress?: string | null;
+  warehouseAddress?: string | null;
+  customerSegment?: string | null;
+  displayAreaNote?: string | null;
+  expectedDisplayQuantity?: number | null;
+  expectedOpeningOrderAmount?: number | null;
+  coverageArea?: string | null;
+  businessModelNote?: string | null;
+  salesChannel?: string | null;
+  sellingChannel?: string | null;
+  socialLink?: string | null;
+};
+
+function typeSpecificDetails(partner: { partnerType: { code: string }; profile: PartnerDetailProfile | null; phone: string | null }) {
+  const p = partner.profile;
+  if (partner.partnerType.code === "shop_referral") return [["Tên shop", p?.shopName], ["Người liên hệ", p?.contactName ?? p?.fullName], ["SĐT", partner.phone], ["Địa chỉ cửa hàng", p?.storeAddress], ["Tệp khách hàng", p?.customerSegment]];
+  if (partner.partnerType.code === "mini_corner") return [["Tên shop", p?.shopName], ["Địa chỉ cửa hàng", p?.storeAddress], ["Góc trưng bày", p?.displayAreaNote], ["SL trưng bày dự kiến", p?.expectedDisplayQuantity]];
+  if (partner.partnerType.code === "agency") return [["Tên shop / đơn vị", p?.businessName], ["Địa chỉ", p?.storeAddress ?? p?.warehouseAddress], ["Mức nhập ban đầu", p?.expectedOpeningOrderAmount ? `${p.expectedOpeningOrderAmount.toLocaleString("vi-VN")}đ` : undefined], ["Khu vực phân phối", p?.coverageArea], ["Mô hình", p?.businessModelNote]];
+  return [["Người liên hệ", p?.contactName ?? p?.fullName], ["SĐT", partner.phone], ["Kênh", p?.salesChannel ?? p?.sellingChannel], ["Link xã hội", p?.socialLink]];
+}
 
 export default async function Page({
   params,
@@ -86,7 +115,7 @@ export default async function Page({
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="card">
           <p className="font-semibold text-merly-700">
-            {partner.partnerType.code}
+            {typeLabel(partner.partnerType.code)}
           </p>
           <h1 className="mt-2 text-3xl font-bold text-merly-900">
             {partner.displayName}
@@ -102,8 +131,8 @@ export default async function Page({
               ["Số điện thoại", partner.phone ?? "—"],
               ["Email", partner.email ?? "—"],
               ["Zalo", partner.profile?.zalo ?? "—"],
-              ["Khu vực", partner.profile?.area ?? "—"],
-              ["Kênh bán", partner.profile?.sellingChannel ?? "—"],
+              ["Khu vực", partner.profile?.cityProvince ?? partner.profile?.area ?? "—"],
+              ["Kênh bán", partner.profile?.salesChannel ?? partner.profile?.sellingChannel ?? "—"],
               ["Link xã hội", partner.profile?.socialLink ?? "—"],
               [
                 "Ngân hàng",
@@ -119,6 +148,19 @@ export default async function Page({
             ))}
           </dl>
 
+          <div className="mt-6 rounded-xl border border-rose-100 p-4">
+            <h2 className="text-xl font-bold text-merly-900">Thông tin trọng tâm theo loại đối tác</h2>
+            <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+              {typeSpecificDetails(partner).map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-stone-500">{label}</dt>
+                  <dd className="font-semibold text-merly-900">{value || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          {partner.partnerType.code === "referral_ctv" ? (
           <div className="mt-6 rounded-xl border border-rose-100 p-4">
             <h2 className="text-xl font-bold text-merly-900">
               Tài khoản đăng nhập CTV
@@ -172,6 +214,9 @@ export default async function Page({
               </p>
             ) : null}
           </div>
+          ) : (
+            <div className="mt-6 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm font-medium text-amber-900">Dashboard chuyên biệt cho loại đối tác này đang được hoàn thiện. Hồ sơ vẫn có thể được duyệt và quản lý tại admin.</div>
+          )}
           <div className="mt-6 rounded-xl bg-stone-50 p-4">
             <h2 className="font-bold text-merly-900">Ghi chú / kinh nghiệm</h2>
             <p className="mt-2 whitespace-pre-wrap text-sm text-stone-600">
