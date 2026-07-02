@@ -16,10 +16,10 @@ export async function setupPasswordAction(_prev: { message?: string }, formData:
   if (!result.ok) return { message: result.message };
   redirect("/dang-nhap?setup=success");
 }
-export async function forgotPasswordAction(_prev: { message?: string }, formData: FormData) {
-  const login = String(formData.get("login") ?? "");
-  if (login.trim()) await createPasswordResetTokenForLogin(login);
-  return { message: "Nếu thông tin khớp với tài khoản CTV, Merly sẽ gửi hướng dẫn đặt lại mật khẩu hoặc hỗ trợ xác minh tài khoản." };
+export async function forgotPasswordAction(_prev: { message?: string; login?: string; ok?: boolean }, formData: FormData) {
+  const login = String(formData.get("login") ?? "").trim();
+  if (login) await createPasswordResetTokenForLogin(login);
+  return { login, ok: true, message: "Nếu thông tin khớp với tài khoản CTV, Merly sẽ gửi hướng dẫn đặt lại mật khẩu qua email hoặc hỗ trợ xác minh tài khoản." };
 }
 
 export async function resetPasswordAction(_prev: { message?: string }, formData: FormData) {

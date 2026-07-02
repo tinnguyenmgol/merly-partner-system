@@ -67,11 +67,11 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ statementToken?: string; resetToken?: string }>;
+  searchParams: Promise<{ statementToken?: string; resetToken?: string; setupLink?: string }>;
 }) {
   await requireAdminSession();
   const { id } = await params;
-  const { statementToken, resetToken } = await searchParams;
+  const { statementToken, resetToken, setupLink } = await searchParams;
 
   if (!hasDatabaseUrl()) {
     return (
@@ -108,6 +108,7 @@ export default async function Page({
   const summary = summarizeLedgers(partner.ledgerEntries);
   const appBaseUrl = (process.env.APP_BASE_URL ?? "").replace(/\/$/, "");
   const resetUrl = resetToken ? `${appBaseUrl}/dat-lai-mat-khau?token=${resetToken}` : null;
+  const setupUrl = setupLink ? decodeURIComponent(setupLink) : null;
   const publicStatementUrl = statementToken
     ? `/partners/public-statement/${statementToken}`
     : partner.statementTokens[0]
@@ -226,6 +227,11 @@ export default async function Page({
             {resetUrl ? (
               <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm break-all">
                 Sao chép link đặt lại mật khẩu: {resetUrl}
+              </p>
+            ) : null}
+            {setupUrl ? (
+              <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-800 break-all">
+                Link thiết lập mật khẩu đã tạo khi duyệt CTV. Nếu email không tới, sao chép gửi thủ công: {setupUrl}
               </p>
             ) : null}
           </div>

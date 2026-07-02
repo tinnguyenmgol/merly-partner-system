@@ -5,7 +5,8 @@ type EmailInput = { to: string; subject: string; html: string; text: string };
 export type SmtpAuthMethod = "DEFAULT" | "LOGIN";
 export type SmtpErrorStage = "verify" | "sendMail";
 export type SafeSmtpErrorDetails = { stage: SmtpErrorStage; name: string; code?: string; command?: string; responseCode?: number; response?: string; message: string; authMethod: SmtpAuthMethod };
-type EmailResult = { ok: true; skipped: false; messageId?: string } | { ok: false; skipped: true; reason: string } | { ok: false; skipped: false; error: string; details?: SafeSmtpErrorDetails };
+export type SafeEmailSendDetails = { messageId?: string; accepted?: string[]; rejected?: string[]; response?: string; envelope?: unknown };
+type EmailResult = { ok: true; skipped: false } & SafeEmailSendDetails | { ok: false; skipped: true; reason: string } | { ok: false; skipped: false; error: string; details?: SafeSmtpErrorDetails };
 type VerifyResult = { ok: true; skipped: false } | { ok: false; skipped: true; reason: string } | { ok: false; skipped: false; error: string; details: SafeSmtpErrorDetails };
 
 type SmtpConfig = { host: string; port: number; secure: boolean; user: string; pass: string; from: string };
@@ -56,11 +57,14 @@ function createTransactionalEmailTransport(config: SmtpConfig, requestedAuthMeth
     ...(authMethod === "LOGIN" ? { authMethod: "LOGIN" } : {}),
     name: "partner.merlyshoes.com",
     requireTLS: port === 587,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     tls: {
       servername: host,
       minVersion: "TLSv1.2",
     },
-  });
+  } as Parameters<typeof nodemailer.createTransport>[0]);
 }
 
 export function getSmtpRuntimeDiagnostics(authMethod?: SmtpAuthMethod): SmtpRuntimeDiagnostics {
@@ -159,7 +163,16 @@ export async function sendTransactionalEmail(input: EmailInput): Promise<EmailRe
       text: input.text,
       html: input.html,
     });
-    return { ok: true, skipped: false, messageId: info.messageId };
+    const safeInfo = info as { messageId?: string; accepted?: unknown; rejected?: unknown; response?: unknown; envelope?: unknown };
+    return {
+      ok: true,
+      skipped: false,
+      messageId: safeInfo.messageId,
+      accepted: Array.isArray(safeInfo.accepted) ? safeInfo.accepted.map(String) : undefined,
+      rejected: Array.isArray(safeInfo.rejected) ? safeInfo.rejected.map(String) : undefined,
+      response: typeof safeInfo.response === "string" ? sanitizeSmtpText(safeInfo.response) : undefined,
+      envelope: safeInfo.envelope,
+    };
   } catch (error) {
     const details = toSafeSmtpErrorDetails(error, "sendMail", usedAuthMethod);
     return { ok: false, skipped: false, error: details.message, details };

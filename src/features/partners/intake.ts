@@ -5,6 +5,8 @@ import { ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, hasDatabaseUrl } from "@/lib/db";
+import { sendTransactionalEmail } from "@/lib/mail";
+import { sendPartnerWelcomeSetupEmail } from "@/features/auth/partner-auth";
 import { getCtvProgramSettings } from "@/features/settings";
 import { Prisma, type PartnerStatus } from "@prisma/client";
 
@@ -192,6 +194,39 @@ async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: 
   return tx.partnerCode.create({ data: { partnerId, code: `MERLY${partnerId.slice(-10).toUpperCase()}`, source: ATTRIBUTION_SOURCES.AFFILIATE_LINK, codePurpose: "affiliate_tracking" } });
 }
 
+function registrationConfirmationEmail(name: string) {
+  const text = [
+    `Chào chị ${name},`,
+    "",
+    "Merly đã nhận được đăng ký CTV của chị. Hồ sơ đang chờ Merly kiểm tra và duyệt.",
+    "",
+    "Khi được duyệt, Merly sẽ gửi hướng dẫn đăng nhập, link giới thiệu và chính sách hoa hồng.",
+    "",
+    "Merly",
+  ].join("\n");
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#292524"><p>Chào chị ${name},</p><p>Merly đã nhận được đăng ký CTV của chị. Hồ sơ đang chờ Merly kiểm tra và duyệt.</p><p>Khi được duyệt, Merly sẽ gửi hướng dẫn đăng nhập, link giới thiệu và chính sách hoa hồng.</p><p>Merly</p></div>`;
+  return { text, html };
+}
+
+async function sendRegistrationConfirmationEmail(input: { partnerId: string; email?: string; name: string }) {
+  if (!input.email) {
+    console.info("[partner-registration-email] skipped", { partnerId: input.partnerId, emailSendOk: false, emailSkippedReason: "partner_has_no_email" });
+    return;
+  }
+  const result = await sendTransactionalEmail({
+    to: input.email,
+    subject: "Merly đã nhận đăng ký CTV của chị",
+    ...registrationConfirmationEmail(input.name),
+  });
+  if (result.ok) {
+    console.info("[partner-registration-email] sent", { partnerId: input.partnerId, emailSendOk: true, providerMessageId: result.messageId });
+  } else if (result.skipped) {
+    console.info("[partner-registration-email] skipped", { partnerId: input.partnerId, emailSendOk: false, emailSkippedReason: result.reason });
+  } else {
+    console.warn("[partner-registration-email] failed", { partnerId: input.partnerId, emailSendOk: false, errorCode: result.details?.code, errorMessage: result.error });
+  }
+}
+
 export async function submitPartnerRegistration(_previousState: PartnerRegistrationState, formData: FormData): Promise<PartnerRegistrationState> {
   const values = readValues(formData);
 
@@ -232,8 +267,10 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
 
   const partnerType = await ensurePartnerType(partnerTypeCode);
 
+  let createdPartnerId = "";
+
   try {
-    await db.partner.create({
+    const createdPartner = await db.partner.create({
       data: {
         partnerTypeId: partnerType.id,
         status: "pending",
@@ -271,6 +308,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
         },
       },
     });
+    createdPartnerId = createdPartner.id;
   } catch (error) {
     const duplicateState = prismaDuplicateRegistrationState(error, values);
 
@@ -280,6 +318,8 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
 
     throw error;
   }
+
+  void sendRegistrationConfirmationEmail({ partnerId: createdPartnerId, email, name: contactName });
 
   redirect("/dang-ky?status=success");
 }
@@ -299,6 +339,8 @@ export async function reviewPartnerRegistration(formData: FormData) {
     throw new Error("Invalid partner review request.");
   }
 
+  let welcomeEmailInput: { accountId: string; to: string; name: string; referralCode?: string } | null = null;
+
   await db.$transaction(async (tx) => {
     const partner = await tx.partner.findUnique({ include: { profile: true, codes: true, partnerType: true, account: true }, where: { id: partnerId } });
 
@@ -312,13 +354,19 @@ export async function reviewPartnerRegistration(formData: FormData) {
     await tx.partner.update({ where: { id: partnerId }, data: { status: nextStatus } });
 
     let createdCode: string | undefined;
-    if (nextStatus === "approved" && partner.partnerType.code === REFERRAL_PARTNER_TYPE && !partner.account) {
-      await tx.partnerAccount.create({ data: { partnerId, email: partner.email?.toLowerCase() ?? undefined, phone: partner.phone ?? undefined, status: "invited" } });
+    let account = partner.account;
+    if (nextStatus === "approved" && partner.partnerType.code === REFERRAL_PARTNER_TYPE && !account) {
+      account = await tx.partnerAccount.create({ data: { partnerId, email: partner.email?.toLowerCase() ?? undefined, phone: partner.phone ?? undefined, status: "invited" } });
     }
 
     if (nextStatus === "approved" && partner.codes.length === 0) {
       const code = await createUniquePartnerCode(tx, partnerId, requestedCode || buildDefaultPartnerCode(partner.profile?.fullName ?? partner.displayName, partner.phone ?? undefined));
       createdCode = code.code;
+    }
+
+    const referralCode = createdCode ?? partner.codes[0]?.code;
+    if (nextStatus === "approved" && partner.partnerType.code === REFERRAL_PARTNER_TYPE && account?.email) {
+      welcomeEmailInput = { accountId: account.id, to: account.email, name: partner.profile?.fullName ?? partner.displayName, referralCode };
     }
 
     await tx.adminAuditLog.create({
@@ -335,9 +383,23 @@ export async function reviewPartnerRegistration(formData: FormData) {
     });
   });
 
+  let setupLink: string | undefined;
+  if (welcomeEmailInput) {
+    const result = await sendPartnerWelcomeSetupEmail(welcomeEmailInput);
+    setupLink = result.setupLink;
+    if (result.email.ok) {
+      console.info("[partner-welcome-email] sent", { partnerId, emailSendOk: true, providerMessageId: result.email.messageId });
+    } else if (result.email.skipped) {
+      console.info("[partner-welcome-email] skipped", { partnerId, emailSendOk: false, emailSkippedReason: result.email.reason });
+    } else {
+      console.warn("[partner-welcome-email] failed", { partnerId, emailSendOk: false, errorCode: result.email.details?.code, errorMessage: result.email.error });
+    }
+  }
+
   revalidatePath("/admin");
   revalidatePath("/admin/partners");
   revalidatePath(`/admin/partners/${partnerId}`);
+  if (setupLink) redirect(`/admin/partners/${partnerId}?setupLink=${encodeURIComponent(setupLink)}`);
 }
 
 export async function partnerAccountAction(formData: FormData) {

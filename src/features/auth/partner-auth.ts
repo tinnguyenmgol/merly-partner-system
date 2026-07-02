@@ -62,14 +62,58 @@ function passwordResetEmail(link: string) {
 
 export async function createPasswordResetTokenForLogin(login: string) {
   const normalized = normalizeLogin(login);
+  const loginType = normalized.email ? "email" : "phone";
   const account = await db.partnerAccount.findFirst({ where: { OR: [{ email: normalized.email ?? "__none__" }, { phone: normalized.phone ?? "__none__" }] } });
-  if (!account || account.status === "disabled") return { tokenCreated: false, email: { ok: false, skipped: true, reason: "No eligible account." } };
-  const token = await generateSetupPasswordToken(account.id, "reset_password");
-  if (!account.email) return { tokenCreated: true, email: { ok: false, skipped: true, reason: "Account has no email." } };
+  const eligibleAccount = account && account.status !== "disabled" ? account : null;
+  const logBase = {
+    loginType,
+    accountMatched: Boolean(eligibleAccount),
+    accountHasEmail: Boolean(eligibleAccount?.email),
+  };
+
+  if (!eligibleAccount) {
+    console.info("[forgot-password] result", { ...logBase, emailSendOk: false, emailSkippedReason: "no_eligible_account" });
+    return { tokenCreated: false, email: { ok: false, skipped: true, reason: "No eligible account." } };
+  }
+
+  const token = await generateSetupPasswordToken(eligibleAccount.id, "reset_password");
+  if (!eligibleAccount.email) {
+    console.info("[forgot-password] result", { ...logBase, emailSendOk: false, emailSkippedReason: "account_has_no_email" });
+    return { tokenCreated: true, email: { ok: false, skipped: true, reason: "Account has no email." } };
+  }
+
   const link = `${getAppBaseUrl()}/dat-lai-mat-khau?token=${encodeURIComponent(token)}`;
   const content = passwordResetEmail(link);
-  const email = await sendTransactionalEmail({ to: account.email, subject: "Đặt lại mật khẩu CTV Merly", ...content });
+  const email = await sendTransactionalEmail({ to: eligibleAccount.email, subject: "Đặt lại mật khẩu CTV Merly", ...content });
+  if (email.ok) {
+    console.info("[forgot-password] result", { ...logBase, emailSendOk: true, providerMessageId: email.messageId });
+  } else if (email.skipped) {
+    console.info("[forgot-password] result", { ...logBase, emailSendOk: false, emailSkippedReason: email.reason });
+  } else {
+    console.warn("[forgot-password] result", { ...logBase, emailSendOk: false, errorCode: email.details?.code, errorMessage: email.error });
+  }
   return { tokenCreated: true, email };
+}
+
+export async function sendPartnerWelcomeSetupEmail(input: { accountId: string; to: string; name: string; referralCode?: string }) {
+  const token = await generateSetupPasswordToken(input.accountId, "setup_password");
+  const setupLink = `${getAppBaseUrl()}/thiet-lap-mat-khau?token=${encodeURIComponent(token)}`;
+  const referralLink = input.referralCode ? `${getAppBaseUrl()}/?ref=${encodeURIComponent(input.referralCode)}` : undefined;
+  const lines = [
+    `Chào chị ${input.name},`,
+    "",
+    "Merly đã duyệt hồ sơ CTV của chị.",
+    `Thiết lập mật khẩu: ${setupLink}`,
+    input.referralCode ? `Mã giới thiệu: ${input.referralCode}` : undefined,
+    referralLink ? `Link giới thiệu: ${referralLink}` : undefined,
+    "",
+    "Chính sách hoa hồng được tính theo đơn hợp lệ.",
+    "",
+    "Merly",
+  ].filter(Boolean).join("\n");
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#292524"><p>Chào chị ${input.name},</p><p>Merly đã duyệt hồ sơ CTV của chị.</p><p><a href="${setupLink}" style="display:inline-block;border-radius:12px;background:#be123c;color:#ffffff;padding:12px 18px;text-decoration:none;font-weight:700">Thiết lập mật khẩu</a></p><p>Nếu nút không hoạt động, chị mở link này:</p><p style="word-break:break-all"><a href="${setupLink}">${setupLink}</a></p>${input.referralCode ? `<p>Mã giới thiệu: <strong>${input.referralCode}</strong></p>` : ""}${referralLink ? `<p>Link giới thiệu: <a href="${referralLink}">${referralLink}</a></p>` : ""}<p>Chính sách hoa hồng được tính theo đơn hợp lệ.</p><p>Merly</p></div>`;
+  const email = await sendTransactionalEmail({ to: input.to, subject: "Chào mừng chị đến với CTV Merly", text: lines, html });
+  return { setupLink, email };
 }
 
 export async function validateAuthToken(token: string, purpose: "setup_password" | "reset_password" = "setup_password") {
