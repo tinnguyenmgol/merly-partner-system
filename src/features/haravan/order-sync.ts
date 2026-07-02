@@ -123,7 +123,16 @@ export async function importHaravanOrder(order: HaravanOrder) {
           note: "Existing manual/order_request attribution was preserved.",
         }
       : await resolveHaravanAttribution(tx, order);
-    const partnerId = hasProtectedAttribution
+    const existingAttribution = existing?.attributions[0];
+    const hasDifferentExistingAttribution = Boolean(
+      !hasProtectedAttribution &&
+        existingAttribution &&
+        attribution.partnerCode &&
+        (existingAttribution.partnerCodeId !== attribution.partnerCode.id || existingAttribution.source !== attribution.source),
+    );
+    // Attribution priority: manual/order_request are protected. On later syncs, a different
+    // automatic candidate is not overwritten silently; preserve existing partnerId and audit.
+    const partnerId = hasProtectedAttribution || hasDifferentExistingAttribution
       ? existing?.partnerId
       : attribution.partnerCode?.partnerId;
 
@@ -185,7 +194,7 @@ export async function importHaravanOrder(order: HaravanOrder) {
       });
     }
 
-    if (!hasProtectedAttribution) {
+    if (!hasProtectedAttribution && !hasDifferentExistingAttribution) {
       await tx.partnerOrderAttribution.deleteMany({
         where: {
           orderId: partnerOrder.id,
@@ -214,8 +223,23 @@ export async function importHaravanOrder(order: HaravanOrder) {
       }
     }
 
+    if (hasDifferentExistingAttribution && existingAttribution && attribution.partnerCode) {
+      await tx.adminAuditLog.create({
+        data: {
+          partnerId: existing?.partnerId ?? attribution.partnerCode.partnerId,
+          action: "order.attribution_conflict_preserved",
+          entityType: "PartnerOrder",
+          entityId: partnerOrder.id,
+          beforeJson: { partnerId: existing?.partnerId ?? null, source: existingAttribution.source, partnerCodeId: existingAttribution.partnerCodeId },
+          afterJson: { candidatePartnerId: attribution.partnerCode.partnerId, candidateSource: attribution.source, candidateCode: attribution.value },
+          note: "Haravan sync found a different non-manual attribution candidate and preserved the existing attribution for manual review.",
+        },
+      });
+    }
+
     if (
       !hasProtectedAttribution &&
+      !hasDifferentExistingAttribution &&
       attribution.partnerCode &&
       existing?.partnerId !== attribution.partnerCode.partnerId
     ) {
