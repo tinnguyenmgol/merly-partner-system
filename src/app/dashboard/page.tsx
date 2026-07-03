@@ -27,11 +27,17 @@ export default async function Dashboard() {
   const orderSummary = summarizeOrders(orders);
   const code = partner.codes[0]?.code ?? "—";
   const settings = await getCtvProgramSettings();
-  const unreadAnnouncements = await db.partnerAnnouncement.findMany({
-    where: { targetPartnerType: partner.partnerType.code, archivedAt: null, publishAt: { lte: new Date() }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }], reads: { none: { partnerId: partner.id } } },
-    orderBy: [{ pinned: "desc" }, { publishAt: "desc" }],
-    take: 3,
-  });
+  const nowForActions = new Date();
+  const [unreadAnnouncements, activeContentCount, activeCampaign, pendingOrderRequests] = await Promise.all([
+    db.partnerAnnouncement.findMany({
+      where: { targetPartnerType: partner.partnerType.code, archivedAt: null, publishAt: { lte: nowForActions }, OR: [{ expiresAt: null }, { expiresAt: { gt: nowForActions } }], reads: { none: { partnerId: partner.id } } },
+      orderBy: [{ pinned: "desc" }, { priority: "desc" }, { publishAt: "desc" }],
+      take: 3,
+    }),
+    db.partnerContentAsset.count({ where: { status: "published", publishAt: { lte: nowForActions }, OR: [{ expiresAt: null }, { expiresAt: { gt: nowForActions } }] } }),
+    db.partnerCampaign.findFirst({ where: { status: "published", startAt: { lte: nowForActions }, OR: [{ endAt: null }, { endAt: { gt: nowForActions } }] }, orderBy: [{ priority: "desc" }, { startAt: "asc" }] }),
+    db.partnerOrderRequest.count({ where: { partnerId: partner.id, status: "pending" } }),
+  ]);
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
@@ -42,6 +48,16 @@ export default async function Dashboard() {
   const nextThreshold = monthlyValidOrders < tier10 ? tier10 : monthlyValidOrders < tier30 ? tier30 : null;
   const progressMessage = nextThreshold ? `Tháng này chị có ${monthlyValidOrders} đơn hợp lệ. Còn ${nextThreshold - monthlyValidOrders} đơn nữa để đạt mốc hoa hồng từ ${nextThreshold} đơn/tháng.` : `Chị đang ở mốc cao nhất từ ${tier30} đơn/tháng.`;
 
+  const missingPaymentInfo = !partner.profile?.bankName || !partner.profile.bankAccountNumber || !partner.profile.bankAccountHolder;
+  const actionCards = [
+    ...(missingPaymentInfo ? [{ title: "Cập nhật thông tin thanh toán", body: "Chị chưa cập nhật đủ thông tin nhận thanh toán.", href: "/dashboard/tai-khoan", cta: "Cập nhật tài khoản" }] : []),
+    ...(unreadAnnouncements.length ? [{ title: "Thông báo mới từ Merly", body: `Chị có ${unreadAnnouncements.length} thông báo mới từ Merly.`, href: "/dashboard/thong-bao", cta: "Xem thông báo" }] : []),
+    ...(activeCampaign ? [{ title: "Chương trình đang chạy", body: `Đang có chương trình: ${activeCampaign.title}`, href: "/dashboard/lich-chuong-trinh", cta: "Xem lịch chương trình" }] : []),
+    ...(activeContentCount ? [{ title: "Đăng nội dung mới", body: `Có ${activeContentCount} nội dung mới để chị đăng hôm nay.`, href: "/dashboard/kho-noi-dung", cta: "Xem kho nội dung" }] : []),
+    { title: "Tiến độ cấp bậc", body: nextThreshold ? `Còn ${nextThreshold - monthlyValidOrders} đơn nữa để lên mốc hoa hồng tiếp theo.` : "Chị đang ở mốc hoa hồng cao nhất tháng này.", href: "/dashboard/cap-bac", cta: "Xem cấp bậc" },
+    ...(pendingOrderRequests ? [{ title: "Yêu cầu gắn đơn", body: `Có ${pendingOrderRequests} yêu cầu gắn đơn đang chờ Merly xử lý.`, href: "/dashboard/yeu-cau-gan-don", cta: "Xem yêu cầu gắn đơn" }] : []),
+  ].slice(0, 6);
+
   return (
     <DashboardShell>
       <h1 className="text-3xl font-bold text-merly-900">
@@ -50,6 +66,10 @@ export default async function Dashboard() {
       <p className="mt-2 text-stone-600">
         Mã đối tác {code} · https://merlyshoes.com/?ref={code}
       </p>
+      <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-bold text-merly-900">Việc nên làm hôm nay</h2><p className="text-sm text-stone-600">Các bước ưu tiên để chị có thêm đơn hôm nay.</p></div></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{actionCards.map((action) => <a key={action.href + action.title} className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4 hover:bg-rose-50" href={action.href}><h3 className="font-bold text-merly-900">{action.title}</h3><p className="mt-2 text-sm text-stone-700">{action.body}</p><span className="mt-3 inline-block text-sm font-semibold text-merly-700">{action.cta} →</span></a>)}</div>
+      </section>
       <div className="mt-6 grid gap-4 md:grid-cols-5">
         <div className="card">
           <p>Tổng đơn ghi nhận</p>

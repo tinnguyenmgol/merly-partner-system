@@ -95,6 +95,8 @@ model AdminUser {
   updatedAt    DateTime        @updatedAt
 
   sessions AdminAuthSession[]
+  contentAssets PartnerContentAsset[]
+  campaigns PartnerCampaign[]
 
   @@index([status])
 }
@@ -526,6 +528,58 @@ model PartnerProgramSetting {
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+model PartnerContentAsset {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  contentType      String
+  category         String   @default("general")
+  assetUrl         String?
+  thumbnailUrl     String?
+  caption          String?
+  targetUrl        String?
+  productCode      String?
+  campaignId       String?
+  tags             Json?
+  status           String   @default("draft")
+  publishAt        DateTime @default(now())
+  expiresAt        DateTime?
+  createdByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  campaign       PartnerCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  createdByAdmin AdminUser?       @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishAt, expiresAt])
+  @@index([category, contentType])
+  @@index([campaignId])
+}
+
+model PartnerCampaign {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  campaignType     String   @default("general")
+  status           String   @default("draft")
+  startAt          DateTime
+  endAt            DateTime?
+  priority         String   @default("normal")
+  productCodes     String?
+  targetUrl        String?
+  ctaLabel         String?
+  ctaUrl           String?
+  createdByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contentAssets  PartnerContentAsset[]
+  createdByAdmin AdminUser?           @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, startAt, endAt])
+  @@index([campaignType, priority])
 }
 
 model PartnerAnnouncement {
