@@ -2,7 +2,7 @@ import { requireAdminSession } from "@/features/auth/admin-auth";
 import Link from "next/link";
 import { PartnerOrderRequestStatus, Prisma } from "@prisma/client";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { adminApproveOrderRequest, adminCancelOrderRequest, adminMatchOrderRequest, adminRejectOrderRequest, adminSyncOrderRequestFromHaravan, ORDER_REQUEST_STATUS_LABELS } from "@/features/order-requests";
+import { ORDER_REQUEST_STATUS_LABELS } from "@/features/order-requests";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 import { orderCodeVariants } from "@/features/haravan/order-code";
 import { formatVnd } from "@/lib/money";
@@ -70,18 +70,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           <dl className="grid gap-2 md:grid-cols-2"><Info label="Đối tác" value={selected.partner.displayName}/><Info label="Trạng thái" value={ORDER_REQUEST_STATUS_LABELS[selected.status]}/><Info label="Mã đơn yêu cầu" value={selected.orderCode ?? "—"}/><Info label="Giá trị dự kiến" value={selected.expectedAmount ? formatVnd(selected.expectedAmount) : "—"}/><Info label="Gợi ý liên hệ" value={selected.contactHint ?? "—"}/><Info label="Đơn đã match" value={selected.matchedOrder?.orderCode ?? "—"}/></dl>
           <p><b>Ghi chú CTV:</b> {selected.note ?? "—"}</p>
           <p><b>Phản hồi admin:</b> {selected.rejectReason ?? selected.adminNote ?? "—"}</p>
-          <form action={adminSyncOrderRequestFromHaravan} className="flex flex-wrap items-center gap-2 rounded-2xl border border-rose-100 p-4"><input type="hidden" name="requestId" value={selected.id}/><button className="btn-secondary" type="submit">Đồng bộ đơn này từ Haravan</button><span className="text-sm text-stone-500">Chỉ tìm và nhập một đơn theo mã yêu cầu.</span></form>
+          <form method="post" action="/admin/order-requests/sync" className="flex flex-wrap items-center gap-2 rounded-2xl border border-rose-100 p-4"><input type="hidden" name="requestId" value={selected.id}/><button className="btn-secondary" type="submit">Đồng bộ đơn này từ Haravan</button><span className="text-sm text-stone-500">Chỉ tìm và nhập một đơn theo mã yêu cầu.</span></form>
           {selected.matchedOrder?.partnerId && selected.matchedOrder.partnerId !== selected.partnerId ? <p className="rounded-xl bg-amber-50 p-3 font-semibold text-amber-900">Đơn này đã được gắn với CTV/đối tác khác.</p> : null}
 
           <div className="rounded-2xl border border-rose-100 p-4">
             <h3 className="font-bold text-merly-900">Kết quả tìm đơn (tối đa 20)</h3>
-            <div className="mt-3 grid gap-2">{matches.length === 0 ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Chưa tìm thấy đơn trong dữ liệu đã đồng bộ. Hãy bấm Đồng bộ đơn này từ Haravan.</p> : null}{matches.map((order) => <form action={adminMatchOrderRequest} className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 p-3" key={order.id}><input type="hidden" name="requestId" value={selected.id}/><input type="hidden" name="matchedOrderId" value={order.id}/><span className="font-semibold">{order.orderCode}</span><span>{formatVnd(order.eligibleProductRevenue)}</span><span>{order.partner?.displayName ?? "Chưa gắn"}</span><input className="input max-w-xs" name="adminNote" placeholder="Ghi chú admin"/><button className="btn-secondary" type="submit">Gắn đơn này</button></form>)}</div>
+            <div className="mt-3 grid gap-2">{matches.length === 0 ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Chưa tìm thấy đơn trong dữ liệu đã đồng bộ. Hãy bấm Đồng bộ đơn này từ Haravan.</p> : null}{matches.map((order) => <form method="post" action="/admin/order-requests/match" className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 p-3" key={order.id}><input type="hidden" name="requestId" value={selected.id}/><input type="hidden" name="matchedOrderId" value={order.id}/><span className="font-semibold">{order.orderCode}</span><span>{formatVnd(order.eligibleProductRevenue)}</span><span>{order.partner?.displayName ?? "Chưa gắn"}</span><input className="input max-w-xs" name="adminNote" placeholder="Ghi chú admin"/><button className="btn-secondary" type="submit">Gắn đơn này</button></form>)}</div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            <form action={adminApproveOrderRequest} className="grid gap-2"><input type="hidden" name="requestId" value={selected.id}/><input className="input" name="adminNote" placeholder="Ghi chú duyệt"/><button className="btn-primary" type="submit">Duyệt</button></form>
-            <form action={adminRejectOrderRequest} className="grid gap-2"><input type="hidden" name="requestId" value={selected.id}/><input className="input" name="rejectReason" required placeholder="Lý do từ chối"/><button className="btn-secondary" type="submit">Từ chối</button></form>
-            <form action={adminCancelOrderRequest} className="grid gap-2"><input type="hidden" name="requestId" value={selected.id}/><input className="input" name="adminNote" placeholder="Lý do hủy"/><button className="btn-secondary" type="submit">Hủy yêu cầu</button></form>
+            <form method="post" action="/admin/order-requests/approve" className="grid gap-2"><input type="hidden" name="requestId" value={selected.id}/><input className="input" name="adminNote" placeholder="Ghi chú duyệt"/><button className="btn-primary" type="submit">Duyệt</button></form>
+            <form method="post" action="/admin/order-requests/reject" className="grid gap-2"><input type="hidden" name="requestId" value={selected.id}/><input className="input" name="rejectReason" required placeholder="Lý do từ chối"/><button className="btn-secondary" type="submit">Từ chối</button></form>
+            <form method="post" action="/admin/order-requests/cancel" className="grid gap-2"><input type="hidden" name="requestId" value={selected.id}/><input className="input" name="adminNote" placeholder="Lý do hủy"/><button className="btn-secondary" type="submit">Hủy yêu cầu</button></form>
           </div>
         </div> : <p className="mt-4 text-stone-500">Chọn một yêu cầu để xem chi tiết.</p>}
       </section>

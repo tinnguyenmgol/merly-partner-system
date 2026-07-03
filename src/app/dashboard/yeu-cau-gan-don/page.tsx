@@ -1,4 +1,4 @@
-import { createOrderRequest, ORDER_REQUEST_STATUS_LABELS } from "@/features/order-requests";
+import { ORDER_REQUEST_STATUS_LABELS } from "@/features/order-requests";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { db } from "@/lib/db";
@@ -26,7 +26,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
       {params.created ? <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-800">Đã gửi yêu cầu kiểm tra.</p> : null}
     </section>
 
-    <form action={createOrderRequest} className="card grid gap-4 md:grid-cols-2">
+    <form method="post" action="/dashboard/yeu-cau-gan-don/create" className="card grid gap-4 md:grid-cols-2">
       <h2 className="text-xl font-bold text-merly-900 md:col-span-2">Gửi yêu cầu kiểm tra</h2>
       <label className="grid gap-1 text-sm font-medium">Mã đơn nếu biết<input className="input" name="orderCode" placeholder="VD: #M12345" /></label>
       <label className="grid gap-1 text-sm font-medium">Gợi ý khách hàng/liên hệ nếu có<input className="input" name="contactHint" placeholder="Tên, SĐT rút gọn hoặc kênh liên hệ" /></label>
