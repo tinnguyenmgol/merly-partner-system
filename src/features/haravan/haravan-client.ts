@@ -1,10 +1,12 @@
 import { normalizeOrderCode, orderCodeVariants } from "./order-code";
-import type { HaravanOrder } from "./types";
+import type { HaravanOrder, HaravanProduct } from "./types";
 
 type HaravanOrdersResponse = { orders?: HaravanOrder[] };
+type HaravanProductsResponse = { products?: HaravanProduct[] };
 
 const DEFAULT_HARAVAN_API_BASE_URL = "https://apis.haravan.com";
 const ORDERS_ENDPOINT_PATH = "/com/orders.json";
+const PRODUCTS_ENDPOINT_PATH = "/com/products.json";
 
 function normalizeApiBaseUrl(baseUrl?: string) {
   const value = baseUrl?.trim() || DEFAULT_HARAVAN_API_BASE_URL;
@@ -73,6 +75,26 @@ export class HaravanClient {
 
     const payload = (await response.json()) as HaravanOrdersResponse;
     return payload.orders ?? [];
+  }
+
+  async listProducts({ limit = 50, page }: { limit?: number; page?: number } = {}) {
+    const health = await this.healthCheck();
+    if (!health.ok) throw new Error(health.message);
+
+    const url = new URL(`${this.apiBaseUrl}${PRODUCTS_ENDPOINT_PATH}`);
+    url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 250)));
+    if (page) url.searchParams.set("page", String(page));
+
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${this.accessToken}` },
+      next: { revalidate: 0 },
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Haravan products request failed: ${response.status} ${response.statusText}; baseUrl=${this.apiBaseUrl}; path=${PRODUCTS_ENDPOINT_PATH}; body=${responseBodyExcerpt(body)}`);
+    }
+    const payload = (await response.json()) as HaravanProductsResponse;
+    return payload.products ?? [];
   }
 
   async findOrderByCode(orderCode: string) {
