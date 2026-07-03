@@ -9,7 +9,15 @@ import { requireAdminSession } from "@/features/auth/admin-auth";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 
 import { ensureTrustedMerlyUrl } from "@/features/growth/utils";
-function parseDate(value: FormDataEntryValue | null) { const s = String(value ?? "").trim(); return s ? new Date(s) : undefined; }
+
+function parseVietnamDatetimeLocal(value: FormDataEntryValue | null) {
+  const s = String(value ?? "").trim();
+  if (!s) return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return undefined;
+  const withoutZone = s.replace(/(?:Z|[+-]\d{2}:?\d{2})$/, "");
+  return new Date(`${withoutZone.length === 16 ? `${withoutZone}:00` : withoutZone}+07:00`);
+}
+
 function sha256(value: string) { return createHash("sha256").update(value).digest("hex"); }
 function slug() { return randomBytes(5).toString("base64url").replace(/[_-]/g, "").slice(0, 7); }
 
@@ -22,8 +30,8 @@ export async function createAnnouncementAction(formData: FormData) {
     title, body,
     category: String(formData.get("category") || "general"),
     priority: String(formData.get("priority") || "normal"),
-    publishAt: parseDate(formData.get("publishAt")) ?? new Date(),
-    expiresAt: parseDate(formData.get("expiresAt")),
+    publishAt: parseVietnamDatetimeLocal(formData.get("publishAt")) ?? new Date(),
+    expiresAt: parseVietnamDatetimeLocal(formData.get("expiresAt")),
     ctaLabel: String(formData.get("ctaLabel") || "").trim() || undefined,
     ctaUrl: String(formData.get("ctaUrl") || "").trim() || undefined,
     pinned: formData.get("pinned") === "on",
@@ -72,4 +80,3 @@ export async function redirectShortLink(slugValue: string) {
   await db.shortLinkClick.create({ data: { shortLinkId: link.id, partnerId: link.partnerId, userAgent: h.get("user-agent"), referrer: h.get("referer"), ipHash: h.get("x-forwarded-for") ? sha256(h.get("x-forwarded-for")!.split(",")[0].trim()) : undefined } });
   redirect(link.destinationUrl);
 }
-
