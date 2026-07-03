@@ -95,10 +95,12 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Se
   const range = getDateRange(params);
   const rawSource = params.source;
   const sourceFilter = parseAttributionSourceFilter(rawSource);
-  console.warn("[admin-dashboard] attribution source filter", {
-    rawSource,
-    parsedKind: sourceFilter.kind,
-  });
+  if (process.env.DEBUG_PARTNER_LOGS === "true") {
+    console.info("[admin-dashboard] attribution source filter", {
+      rawSource,
+      parsedKind: sourceFilter.kind,
+    });
+  }
   const orderRangeWhere = getSourceFilteredOrderWhere({ createdAt: { gte: range.start, lt: range.end } }, sourceFilter);
   let warning: string | null = null;
   let data: Awaited<ReturnType<typeof loadDashboardData>> | null = null;
