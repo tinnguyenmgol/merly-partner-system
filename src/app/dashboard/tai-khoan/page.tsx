@@ -1,6 +1,5 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
-import { updatePartnerProfileAction } from "@/features/partners/profile-actions";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +45,7 @@ export default async function Page({ searchParams }: { searchParams?: Promise<{ 
               ? "Thông tin nhận thanh toán đã được khóa sau lần thanh toán đầu tiên. Nếu cần thay đổi, vui lòng liên hệ Merly để xác minh."
               : "Chị có thể cập nhật thông tin nhận thanh toán trước khi Merly thực hiện lần thanh toán đầu tiên."}
           </p>
-          <form action={updatePartnerProfileAction} className="mt-5 grid gap-4">
+          <form method="post" action="/dashboard/tai-khoan/update" className="mt-5 grid gap-4">
             <label className="grid gap-1 text-sm font-medium text-stone-700">
               Tên hiển thị/liên hệ
               <input className="input" name="contactName" defaultValue={profile?.contactName ?? ""} placeholder={p.displayName} />
