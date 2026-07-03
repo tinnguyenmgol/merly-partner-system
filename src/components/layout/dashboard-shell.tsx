@@ -6,6 +6,8 @@ import { adminLogoutAction } from "@/features/auth/admin-actions";
 const partner = [
   ["/dashboard", "Tổng quan"],
   ["/dashboard/ma-gioi-thieu", "Mã giới thiệu"],
+  ["/dashboard/link-rut-gon", "Link rút gọn"],
+  ["/dashboard/thong-bao", "Thông báo"],
   ["/dashboard/don-hang", "Đơn hàng"],
   ["/dashboard/yeu-cau-gan-don", "Yêu cầu gắn đơn"],
   ["/dashboard/doanh-thu", "Doanh thu"],
@@ -19,6 +21,7 @@ const admin = [
   ["/admin", "Tổng quan"],
   ["/admin/partners", "Quản lý đối tác"],
   ["/admin/orders", "Đơn hàng CTV"],
+  ["/admin/announcements", "Thông báo & link"],
   ["/admin/order-requests", "Yêu cầu gắn đơn"],
   ["/admin/commissions", "Đối soát hoa hồng"],
   ["/admin/payouts", "Thanh toán"],
