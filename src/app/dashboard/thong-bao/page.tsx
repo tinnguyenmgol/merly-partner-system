@@ -1,6 +1,7 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { db } from "@/lib/db";
+import { partnerDebugLog } from "@/lib/debug-logs";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function Page() {
     db.partnerAnnouncement.findMany({ where: { ...baseWhere, publishAt: { lte: now }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }, orderBy: [{ pinned: "desc" }, { publishAt: "desc" }], include: { reads: { where: { partnerId: partner.id }, select: { readAt: true } } } }),
   ]);
   const firstItem = items[0];
-  console.info("[partner-announcements] CTV query", {
+  partnerDebugLog("[partner-announcements] CTV query", {
     partnerType: partner.partnerType.code,
     countBeforeTimeFilter,
     countAfterTimeFilter: items.length,

@@ -6,6 +6,7 @@ import { ACTIVE_LEDGER_STATUSES, getOrderCommissionBlockReason, isOrderCommissio
 import { parseAttributionSourceFilter } from "@/features/partners/attribution-source-filter";
 import { VALID_ATTRIBUTION_SOURCES } from "@/features/partners/attribution-sources";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
+import { partnerDebugLog } from "@/lib/debug-logs";
 import { formatVnd } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +96,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<Se
   const range = getDateRange(params);
   const rawSource = params.source;
   const sourceFilter = parseAttributionSourceFilter(rawSource);
-  console.warn("[admin-dashboard] attribution source filter", {
+  partnerDebugLog("[admin-dashboard] attribution source filter", {
     rawSource,
     parsedKind: sourceFilter.kind,
   });
