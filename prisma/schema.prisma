@@ -159,6 +159,7 @@ model Partner {
   statementTokens PartnerStatementToken[]
   orderRequests   PartnerOrderRequest[]
   announcementReads PartnerAnnouncementRead[]
+  challengeProgress PartnerChallengeProgress[]
   shortLinks      ShortLink[]
   shortLinkClicks ShortLinkClick[]
   account         PartnerAccount?
@@ -659,4 +660,49 @@ model HaravanSyncLog {
   finishedAt DateTime?
   message    String?
   metadata   Json?
+}
+
+model PartnerChallenge {
+  id                String   @id @default(cuid())
+  title             String
+  description       String?
+  challengeType     String   @default("monthly_orders")
+  status            String   @default("draft")
+  targetMetric      String   @default("valid_order_count")
+  targetValue       Int
+  periodType        String   @default("monthly")
+  startAt           DateTime?
+  endAt             DateTime?
+  rewardType        String   @default("manual")
+  rewardAmount      Int?
+  rewardDescription String?
+  priority          Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  progress PartnerChallengeProgress[]
+
+  @@index([status, priority])
+  @@index([periodType, startAt, endAt])
+}
+
+model PartnerChallengeProgress {
+  id          String    @id @default(cuid())
+  challengeId String
+  partnerId   String
+  periodKey   String?
+  currentValue Int      @default(0)
+  targetValue  Int
+  status       String   @default("in_progress")
+  completedAt  DateTime?
+  rewardedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  challenge PartnerChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  partner   Partner          @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, partnerId, periodKey])
+  @@index([partnerId, status])
+  @@index([challengeId, status])
 }
