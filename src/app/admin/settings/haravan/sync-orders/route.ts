@@ -1,2 +1,2 @@
 import { handleOrderSync } from "@/features/haravan/admin-actions";
-export async function POST(request: Request) { return handleOrderSync(request); }
+export async function POST() { return handleOrderSync(); }

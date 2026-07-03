@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { sendTransactionalEmail } from "@/lib/mail";
+import { getPublicAppBaseUrl } from "@/lib/public-url";
 
 const COOKIE_NAME = "merly_partner_session";
 const SESSION_DAYS = 30;
@@ -32,7 +33,7 @@ export async function generateSetupPasswordToken(accountId: string, purpose = "s
   return token;
 }
 
-function getAppBaseUrl() { return (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, ""); }
+function getAppBaseUrl() { return getPublicAppBaseUrl(); }
 
 function passwordResetEmail(link: string) {
   const text = [

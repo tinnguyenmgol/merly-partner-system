@@ -11,12 +11,16 @@ function imageUrl(product: HaravanProduct) { return product.image?.src ?? produc
 export async function syncHaravanProducts(client = new HaravanClient()) {
   if (!hasDatabaseUrl()) return { ok: false, message: "DATABASE_URL is required for Haravan product sync.", syncedProducts: 0, syncedVariants: 0, logId: undefined as string | undefined };
   const log = await db.haravanSyncLog.create({ data: { syncType: "products", status: "running" } });
-  let syncedProducts = 0, syncedVariants = 0;
+  let syncedProducts = 0, syncedVariants = 0, pagesFetched = 0;
+  const errors: string[] = [];
+  const maxPages = Number.parseInt(process.env.HARAVAN_PRODUCT_SYNC_MAX_PAGES || "200", 10);
   try {
     const shopBaseUrl = await getHaravanShopBaseUrl();
     let page = 1;
     for (;;) {
+      if (page > maxPages) throw new Error(`Haravan product sync stopped by safety guard after ${maxPages} pages.`);
       const products = await client.listProducts({ limit: 250, page });
+      pagesFetched += 1;
       if (products.length === 0) break;
       for (const product of products) {
         const handle = product.handle || null;
@@ -42,11 +46,12 @@ export async function syncHaravanProducts(client = new HaravanClient()) {
       if (products.length < 250) break;
       page += 1;
     }
-    await db.haravanSyncLog.update({ where: { id: log.id }, data: { status: "success", finishedAt: new Date(), message: `Synced ${syncedProducts} Haravan products.`, metadata: { syncedProducts, syncedVariants } } });
-    return { ok: true, message: `Synced ${syncedProducts} Haravan products.`, syncedProducts, syncedVariants, logId: log.id };
+    await db.haravanSyncLog.update({ where: { id: log.id }, data: { status: "success", finishedAt: new Date(), message: `Synced ${syncedProducts} Haravan products.`, metadata: { pagesFetched, productsFetched: syncedProducts, productsUpserted: syncedProducts, variantsFetched: syncedVariants, variantsUpserted: syncedVariants, syncedProducts, syncedVariants, errors } } });
+    return { ok: true, message: `Synced ${syncedProducts} Haravan products across ${pagesFetched} page(s).`, pagesFetched, syncedProducts, syncedVariants, logId: log.id };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Haravan product sync error";
-    await db.haravanSyncLog.update({ where: { id: log.id }, data: { status: "failed", finishedAt: new Date(), message, metadata: { syncedProducts, syncedVariants } } });
-    return { ok: false, message, syncedProducts, syncedVariants, logId: log.id };
+    errors.push(message);
+    await db.haravanSyncLog.update({ where: { id: log.id }, data: { status: "failed", finishedAt: new Date(), message, metadata: { pagesFetched, productsFetched: syncedProducts, productsUpserted: syncedProducts, variantsFetched: syncedVariants, variantsUpserted: syncedVariants, syncedProducts, syncedVariants, errors } } });
+    return { ok: false, message, pagesFetched, syncedProducts, syncedVariants, logId: log.id };
   }
 }

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/features/auth/admin-auth";
 import { db } from "@/lib/db";
+import { appUrl } from "@/lib/public-url";
 import { syncHaravanProducts } from "./product-sync";
 import { syncHaravanOrders } from "./order-sync";
 import { HARAVAN_ORDER_SYNC_SETTING_KEY, HARAVAN_SHOP_BASE_URL_SETTING_KEY, DEFAULT_HARAVAN_ORDER_SYNC_SETTINGS, splitLines } from "./settings";
 
-export async function handleProductSync(request: Request) { await requireAdminSession(); await syncHaravanProducts(); return NextResponse.redirect(new URL("/admin/haravan/products", request.url)); }
-export async function handleOrderSync(request: Request) { await requireAdminSession(); await syncHaravanOrders(); return NextResponse.redirect(new URL("/admin/settings/haravan", request.url)); }
+export async function handleProductSync() { await requireAdminSession(); await syncHaravanProducts(); return NextResponse.redirect(appUrl("/admin/haravan/products?synced=1")); }
+export async function handleOrderSync() { await requireAdminSession(); await syncHaravanOrders(); return NextResponse.redirect(appUrl("/admin/settings/haravan")); }
 export async function handleHaravanSettingsSave(request: Request) {
   await requireAdminSession();
   const formData = await request.formData();
@@ -24,5 +25,5 @@ export async function handleHaravanSettingsSave(request: Request) {
   const shopBaseUrl = String(formData.get("shopBaseUrl") || "https://merlyshoes.com").trim().replace(/\/$/, "");
   await db.partnerProgramSetting.upsert({ where: { key: HARAVAN_ORDER_SYNC_SETTING_KEY }, create: { key: HARAVAN_ORDER_SYNC_SETTING_KEY, value: settings }, update: { value: settings } });
   await db.partnerProgramSetting.upsert({ where: { key: HARAVAN_SHOP_BASE_URL_SETTING_KEY }, create: { key: HARAVAN_SHOP_BASE_URL_SETTING_KEY, value: { url: shopBaseUrl } }, update: { value: { url: shopBaseUrl } } });
-  return NextResponse.redirect(new URL("/admin/settings/haravan", request.url));
+  return NextResponse.redirect(appUrl("/admin/settings/haravan"));
 }
