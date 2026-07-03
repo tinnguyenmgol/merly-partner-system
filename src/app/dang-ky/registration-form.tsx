@@ -78,13 +78,15 @@ function FieldInput({ field, values, errors }: { field: Field; values: Record<st
   );
 }
 
-export function RegistrationForm() {
+export function RegistrationForm({ partnerRef }: { partnerRef?: string }) {
   const [state, formAction, pending] = useActionState(submitPartnerRegistration, initialState);
   const [selectedType, setSelectedType] = useState<PartnerTypeCode | "">((state.values.partnerTypeCode as PartnerTypeCode) || "");
   const contactFields = selectedType === "referral_ctv" ? commonContact.filter((field) => field.name !== "contactName") : commonContact;
 
   return (
     <form action={formAction} className="mt-6 grid gap-5">
+      {partnerRef ? <input type="hidden" name="partnerRef" value={partnerRef} /> : null}
+      {partnerRef ? <p className="rounded-xl bg-rose-50 p-3 text-sm text-merly-900">Đăng ký qua link giới thiệu partner Merly.</p> : null}
       {state.message ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800" role="alert">{state.message}</div> : null}
       <section className="grid gap-3">
         <h2 className="text-lg font-bold text-merly-900">1. Chọn loại hình hợp tác</h2>

@@ -97,6 +97,7 @@ model AdminUser {
   sessions AdminAuthSession[]
   contentAssets PartnerContentAsset[]
   campaigns PartnerCampaign[]
+  trainingLessons PartnerTrainingLesson[]
 
   @@index([status])
 }
@@ -163,6 +164,9 @@ model Partner {
   shortLinks      ShortLink[]
   shortLinkClicks ShortLinkClick[]
   account         PartnerAccount?
+  trainingProgress PartnerTrainingProgress[]
+  referralsSent PartnerReferral[] @relation("PartnerReferralReferrer")
+  referralsReceived PartnerReferral[] @relation("PartnerReferralReferred")
 }
 
 model PartnerProfile {
@@ -581,6 +585,71 @@ model PartnerCampaign {
 
   @@index([status, startAt, endAt])
   @@index([campaignType, priority])
+}
+
+model PartnerTrainingLesson {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  category         String
+  level            String   @default("beginner")
+  videoUrl         String?
+  thumbnailUrl     String?
+  body             String?
+  estimatedMinutes Int?
+  status           String   @default("draft")
+  orderIndex       Int      @default(0)
+  publishAt        DateTime @default(now())
+  archivedAt       DateTime?
+  createdByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  createdByAdmin AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  progress PartnerTrainingProgress[]
+
+  @@index([status, publishAt, archivedAt])
+  @@index([category, level, orderIndex])
+}
+
+model PartnerTrainingProgress {
+  id          String   @id @default(cuid())
+  lessonId    String
+  partnerId   String
+  status      String   @default("not_started")
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lesson PartnerTrainingLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, partnerId])
+  @@index([partnerId, status])
+}
+
+model PartnerReferral {
+  id                String   @id @default(cuid())
+  referrerPartnerId String
+  referredPartnerId String?
+  referredEmail     String?
+  referredPhone     String?
+  status            String   @default("invited")
+  rewardAmount      Int?
+  rewardDescription String?
+  adminNote         String?
+  rewardApprovedAt  DateTime?
+  rewardedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  referrerPartner Partner @relation("PartnerReferralReferrer", fields: [referrerPartnerId], references: [id], onDelete: Cascade)
+  referredPartner Partner? @relation("PartnerReferralReferred", fields: [referredPartnerId], references: [id], onDelete: SetNull)
+
+  @@index([referrerPartnerId, status, createdAt])
+  @@index([referredPartnerId])
+  @@index([status, createdAt])
 }
 
 model PartnerAnnouncement {

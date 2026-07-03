@@ -2,8 +2,8 @@ import { MerlyLogo } from "@/components/merly-logo";
 import { RegistrationForm } from "./registration-form";
 
 
-export default async function Register({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  const { status } = await searchParams;
+export default async function Register({ searchParams }: { searchParams: Promise<{ status?: string; partner_ref?: string }> }) {
+  const { status, partner_ref } = await searchParams;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -28,7 +28,7 @@ export default async function Register({ searchParams }: { searchParams: Promise
             Chưa cấu hình DATABASE_URL nên Merly chưa thể nhận đăng ký đối tác.
           </div>
         )}
-        <RegistrationForm />
+        <RegistrationForm partnerRef={partner_ref} />
       </div>
     </main>
   );
