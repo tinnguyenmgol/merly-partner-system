@@ -144,6 +144,9 @@ model Partner {
   clicks          PartnerClick[]
   statementTokens PartnerStatementToken[]
   orderRequests   PartnerOrderRequest[]
+  announcementReads PartnerAnnouncementRead[]
+  shortLinks      ShortLink[]
+  shortLinkClicks ShortLinkClick[]
   account         PartnerAccount?
 }
 
@@ -492,6 +495,75 @@ model PartnerProgramSetting {
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+model PartnerAnnouncement {
+  id                String    @id @default(cuid())
+  title             String
+  body              String
+  category          String    @default("general")
+  priority          String    @default("normal")
+  publishAt         DateTime  @default(now())
+  expiresAt         DateTime?
+  ctaLabel          String?
+  ctaUrl            String?
+  pinned            Boolean   @default(false)
+  archivedAt        DateTime?
+  targetPartnerType PartnerTypeCode @default(referral_ctv)
+  createdByAdminId  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  reads PartnerAnnouncementRead[]
+
+  @@index([targetPartnerType, publishAt, expiresAt, archivedAt])
+  @@index([pinned, priority])
+}
+
+model PartnerAnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  partnerId      String
+  readAt         DateTime @default(now())
+
+  announcement PartnerAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  partner      Partner             @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, partnerId])
+  @@index([partnerId, readAt])
+}
+
+model ShortLink {
+  id          String    @id @default(cuid())
+  partnerId   String
+  slug        String    @unique
+  destinationUrl String
+  disabledAt  DateTime?
+  disabledReason String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  clicks  ShortLinkClick[]
+
+  @@index([partnerId, createdAt])
+  @@index([disabledAt])
+}
+
+model ShortLinkClick {
+  id          String   @id @default(cuid())
+  shortLinkId String
+  partnerId   String
+  userAgent   String?
+  ipHash      String?
+  referrer    String?
+  clickedAt   DateTime @default(now())
+
+  shortLink ShortLink @relation(fields: [shortLinkId], references: [id], onDelete: Cascade)
+  partner   Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([shortLinkId, clickedAt])
+  @@index([partnerId, clickedAt])
 }
 
 model HaravanSyncLog {
