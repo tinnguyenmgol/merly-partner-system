@@ -1,0 +1,4 @@
+"use client";
+import Link from "next/link";import { usePathname } from "next/navigation";
+export type NavGroup={label:string;items:{href:string;label:string}[]};
+export function SidebarNav({groups,footer}:{groups:NavGroup[];footer:React.ReactNode}){const pathname=usePathname();return <nav className="mt-5 grid gap-3">{groups.map(g=><div key={g.label} className="grid gap-1"><p className="px-3 text-[11px] font-bold uppercase tracking-wide text-stone-400">{g.label}</p>{g.items.map(i=>{const active=pathname===i.href|| (i.href!=="/dashboard"&&i.href!=="/admin"&&pathname.startsWith(i.href+"/"));return <Link key={i.href} className={`rounded-xl px-3 py-2 text-sm font-medium hover:bg-merly-50 hover:text-merly-700 ${active?"bg-rose-50 text-merly-800 shadow-sm":"text-stone-700"}`} href={i.href}>{i.label}</Link>})}</div>)}{footer}</nav>}

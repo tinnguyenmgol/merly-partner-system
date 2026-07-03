@@ -235,6 +235,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
     redirect("/dang-ky?status=database-missing");
   }
 
+  const partnerRef = normalizePartnerCode(readString(formData, "partnerRef"));
   const settings = await getCtvProgramSettings();
   if (!settings.ctvProgramEnabled && values.partnerTypeCode === REFERRAL_PARTNER_TYPE) {
     return { message: "Chương trình CTV Merly đang tạm ngưng nhận đăng ký mới. Vui lòng quay lại sau hoặc liên hệ Merly để được hỗ trợ.", values };
@@ -267,6 +268,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
   }
 
   const partnerType = await ensurePartnerType(partnerTypeCode);
+  const referrerCode = partnerRef ? await db.partnerCode.findFirst({ where: { code: partnerRef, partner: { status: "approved" } }, include: { partner: true } }) : null;
 
   let createdPartnerId = "";
 
@@ -310,6 +312,10 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
       },
     });
     createdPartnerId = createdPartner.id;
+    if (referrerCode && referrerCode.partnerId !== createdPartner.id) {
+      await db.partnerReferral.create({ data: { referrerPartnerId: referrerCode.partnerId, referredPartnerId: createdPartner.id, referredEmail: email, referredPhone: phone, status: "registered" } });
+      await createAdminNotification({ type: "partner.referral.registered", title: "Có partner được giới thiệu mới", message: `${createdPartner.displayName} đăng ký qua link giới thiệu partner.`, actionUrl: "/admin/partner-referrals", entityType: "PartnerReferral", entityId: createdPartner.id, severity: "info" });
+    }
     await createAdminNotification({ type: "partner.registration.submitted", title: "Có đăng ký CTV mới", actionUrl: "/admin/partners", entityType: "Partner", entityId: createdPartner.id, severity: "info" });
   } catch (error) {
     const duplicateState = prismaDuplicateRegistrationState(error, values);
@@ -354,6 +360,7 @@ export async function reviewPartnerRegistration(formData: FormData) {
     const beforeJson = { status: partner.status, codes: partner.codes.map((code) => code.code) };
 
     await tx.partner.update({ where: { id: partnerId }, data: { status: nextStatus } });
+    if (nextStatus === "approved") await tx.partnerReferral.updateMany({ where: { referredPartnerId: partnerId, status: "registered" }, data: { status: "approved" } });
 
     let createdCode: string | undefined;
     let account = partner.account;

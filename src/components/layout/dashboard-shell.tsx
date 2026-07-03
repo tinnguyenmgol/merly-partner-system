@@ -1,47 +1,25 @@
 import Link from "next/link";
+import { SidebarNav, type NavGroup } from "@/components/layout/sidebar-nav";
 
 import { MerlyLogo } from "@/components/merly-logo";
 import { adminLogoutAction } from "@/features/auth/admin-actions";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { badgeLabel, getAdminUnreadNotificationCount, getPartnerUnreadAnnouncementCount } from "@/features/notifications";
 
-const partner = [
-  ["/dashboard", "Tổng quan"],
-  ["/dashboard/ma-gioi-thieu", "Mã giới thiệu"],
-  ["/dashboard/link-rut-gon", "Link rút gọn"],
-  ["/dashboard/kho-noi-dung", "Kho nội dung"],
-  ["/dashboard/lich-chuong-trinh", "Lịch chương trình"],
-  ["/dashboard/thong-bao", "Thông báo"],
-  ["/dashboard/bang-xep-hang", "Bảng xếp hạng"],
-  ["/dashboard/thu-thach", "Thử thách"],
-  ["/dashboard/don-hang", "Đơn hàng"],
-  ["/dashboard/yeu-cau-gan-don", "Yêu cầu gắn đơn"],
-  ["/dashboard/doanh-thu", "Doanh thu"],
-  ["/dashboard/hoa-hong", "Hoa hồng"],
-  ["/dashboard/thanh-toan", "Thanh toán"],
-  ["/dashboard/cap-bac", "Cấp bậc"],
-  ["/dashboard/tai-khoan", "Tài khoản"],
-  ["/dashboard/ho-tro", "Hỗ trợ"],
+const partnerGroups: NavGroup[] = [
+  { label: "Tổng quan", items: [{ href: "/dashboard", label: "Tổng quan" }] },
+  { label: "Bán hàng", items: [{ href: "/dashboard/ma-gioi-thieu", label: "Mã giới thiệu" }, { href: "/dashboard/link-rut-gon", label: "Link rút gọn" }, { href: "/dashboard/kho-noi-dung", label: "Kho nội dung" }, { href: "/dashboard/lich-chuong-trinh", label: "Lịch chương trình" }, { href: "/dashboard/thong-bao", label: "Thông báo" }] },
+  { label: "Đơn & hoa hồng", items: [{ href: "/dashboard/don-hang", label: "Đơn hàng" }, { href: "/dashboard/yeu-cau-gan-don", label: "Yêu cầu gắn đơn" }, { href: "/dashboard/doanh-thu", label: "Doanh thu" }, { href: "/dashboard/hoa-hong", label: "Hoa hồng" }, { href: "/dashboard/thanh-toan", label: "Thanh toán" }] },
+  { label: "Tăng trưởng", items: [{ href: "/dashboard/cap-bac", label: "Cấp bậc" }, { href: "/dashboard/bang-xep-hang", label: "Bảng xếp hạng" }, { href: "/dashboard/thu-thach", label: "Thử thách" }, { href: "/dashboard/dao-tao", label: "Đào tạo" }, { href: "/dashboard/gioi-thieu-partner", label: "Giới thiệu partner" }] },
+  { label: "Tài khoản", items: [{ href: "/dashboard/tai-khoan", label: "Tài khoản" }, { href: "/dashboard/ho-tro", label: "Hỗ trợ" }] },
 ];
-const admin = [
-  ["/admin", "Tổng quan"],
-  ["/admin/partners", "Quản lý đối tác"],
-  ["/admin/orders", "Đơn hàng CTV"],
-  ["/admin/announcements", "Thông báo & link"],
-  ["/admin/content-library", "Kho nội dung"],
-  ["/admin/campaigns", "Lịch chương trình"],
-  ["/admin/leaderboards", "Bảng xếp hạng"],
-  ["/admin/challenges", "Thử thách"],
-  ["/admin/notifications", "Thông báo nội bộ"],
-  ["/admin/order-requests", "Yêu cầu gắn đơn"],
-  ["/admin/commissions", "Đối soát hoa hồng"],
-  ["/admin/payouts", "Thanh toán"],
-  ["/admin/settings/commission-rules", "Cài đặt chính sách"],
-  ["/admin/settings/partner-levels", "Cấp bậc"],
-  ["/admin/settings/haravan", "Haravan"],
-  ["/admin/logs", "Audit logs"],
+const adminGroups: NavGroup[] = [
+  { label: "Tổng quan", items: [{ href: "/admin", label: "Tổng quan" }, { href: "/admin/notifications", label: "Việc cần xử lý" }] },
+  { label: "Đối tác", items: [{ href: "/admin/partners", label: "Quản lý đối tác" }, { href: "/admin/order-requests", label: "Yêu cầu gắn đơn" }] },
+  { label: "Đơn & đối soát", items: [{ href: "/admin/orders", label: "Đơn hàng CTV" }, { href: "/admin/commissions", label: "Đối soát hoa hồng" }, { href: "/admin/payouts", label: "Thanh toán" }] },
+  { label: "Marketing & tăng trưởng", items: [{ href: "/admin/announcements", label: "Thông báo & link" }, { href: "/admin/content-library", label: "Kho nội dung" }, { href: "/admin/campaigns", label: "Lịch chương trình" }, { href: "/admin/leaderboards", label: "Bảng xếp hạng" }, { href: "/admin/challenges", label: "Thử thách" }, { href: "/admin/training", label: "Đào tạo" }, { href: "/admin/partner-referrals", label: "Giới thiệu partner" }] },
+  { label: "Cài đặt & hệ thống", items: [{ href: "/admin/settings/ctv", label: "Cài đặt CTV" }, { href: "/admin/settings/commission-rules", label: "Cài đặt chính sách" }, { href: "/admin/settings/partner-levels", label: "Cấp bậc" }, { href: "/admin/settings/haravan", label: "Haravan" }, { href: "/admin/logs", label: "Audit logs" }] },
 ];
-
 function AdminLogoutButton() {
   return (
     <form action={adminLogoutAction} className="mt-6">
@@ -71,7 +49,7 @@ export async function DashboardShell({
   children: React.ReactNode;
   admin?: boolean;
 }) {
-  const items = am ? admin : partner;
+  const groups = am ? adminGroups : partnerGroups;
   const notificationCount = am
     ? await getAdminUnreadNotificationCount()
     : await (async () => { const session = await requirePartnerSession(); return getPartnerUnreadAnnouncementCount(session.account.partner.id, session.account.partner.partnerType.code); })();
@@ -81,27 +59,7 @@ export async function DashboardShell({
     <div className="min-h-screen bg-rose-50/60 md:flex">
       <aside className="border-b border-rose-100 bg-white p-4 md:min-h-screen md:w-72 md:border-r">
         <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} /></div>
-        <nav className="mt-6 grid gap-1">
-          {items.map(([href, label]) => (
-            <Link
-              key={href}
-              className="rounded-xl px-3 py-2 text-sm font-medium text-stone-700 hover:bg-merly-50 hover:text-merly-700"
-              href={href}
-            >
-              {label}
-            </Link>
-          ))}
-          {am ? (
-            <AdminLogoutButton />
-          ) : (
-            <Link
-              className="mt-6 block rounded-xl px-3 py-2 text-sm font-semibold text-merly-700 hover:bg-merly-50"
-              href="/dang-xuat"
-            >
-              Đăng xuất
-            </Link>
-          )}
-        </nav>
+        <SidebarNav groups={groups} footer={am ? <AdminLogoutButton /> : <Link className="block rounded-xl px-3 py-2 text-sm font-semibold text-merly-700 hover:bg-merly-50" href="/dang-xuat">Đăng xuất</Link>} />
       </aside>
       <main className="flex-1 p-4 md:p-8">
         <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm">

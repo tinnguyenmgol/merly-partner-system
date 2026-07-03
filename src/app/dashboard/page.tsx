@@ -11,6 +11,7 @@ import {
 import { formatVnd } from "@/lib/money";
 import { getCtvProgramSettings } from "@/features/settings";
 import { getPartnerChallenges } from "@/features/challenges";
+import { partnerRecruitmentLink } from "@/features/referral-link";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function Dashboard() {
   const code = partner.codes[0]?.code ?? "—";
   const settings = await getCtvProgramSettings();
   const nowForActions = new Date();
-  const [unreadAnnouncements, activeContentCount, activeCampaign, pendingOrderRequests, challengeItems] = await Promise.all([
+  const [unreadAnnouncements, activeContentCount, activeCampaign, pendingOrderRequests, challengeItems, trainingLessons, referralRows] = await Promise.all([
     db.partnerAnnouncement.findMany({
       where: { targetPartnerType: partner.partnerType.code, archivedAt: null, publishAt: { lte: nowForActions }, OR: [{ expiresAt: null }, { expiresAt: { gt: nowForActions } }], reads: { none: { partnerId: partner.id } } },
       orderBy: [{ pinned: "desc" }, { priority: "desc" }, { publishAt: "desc" }],
@@ -39,6 +40,8 @@ export default async function Dashboard() {
     db.partnerCampaign.findFirst({ where: { status: "published", startAt: { lte: nowForActions }, OR: [{ endAt: null }, { endAt: { gt: nowForActions } }] }, orderBy: [{ priority: "desc" }, { startAt: "asc" }] }),
     db.partnerOrderRequest.count({ where: { partnerId: partner.id, status: "pending" } }),
     getPartnerChallenges(partner.id),
+    db.partnerTrainingLesson.findMany({ where: { status: "published", archivedAt: null, publishAt: { lte: nowForActions } }, include: { progress: { where: { partnerId: partner.id } } }, orderBy: [{ orderIndex: "asc" }, { publishAt: "desc" }] }),
+    db.partnerReferral.findMany({ where: { referrerPartnerId: partner.id } }),
   ]);
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -52,6 +55,10 @@ export default async function Dashboard() {
 
   const missingPaymentInfo = !partner.profile?.bankName || !partner.profile.bankAccountNumber || !partner.profile.bankAccountHolder;
   const nearestChallenge = challengeItems.filter((item) => item.progress.status === "in_progress").sort((a, b) => (a.progress.targetValue - a.progress.currentValue) - (b.progress.targetValue - b.progress.currentValue))[0];
+  const completedLessonCount = trainingLessons.filter((lesson) => lesson.progress[0]?.status === "completed").length;
+  const nextLesson = trainingLessons.find((lesson) => lesson.progress[0]?.status !== "completed");
+  const pendingReferralRewards = referralRows.filter((row) => row.status === "reward_pending").length;
+  const partnerReferralCode = partner.codes[0]?.code ?? partner.id;
   const actionCards = [
     ...(missingPaymentInfo ? [{ title: "Cập nhật thông tin thanh toán", body: "Chị chưa cập nhật đủ thông tin nhận thanh toán.", href: "/dashboard/tai-khoan", cta: "Cập nhật tài khoản" }] : []),
     ...(unreadAnnouncements.length ? [{ title: "Thông báo mới từ Merly", body: `Chị có ${unreadAnnouncements.length} thông báo mới từ Merly.`, href: "/dashboard/thong-bao", cta: "Xem thông báo" }] : []),
@@ -59,6 +66,8 @@ export default async function Dashboard() {
     ...(activeContentCount ? [{ title: "Đăng nội dung mới", body: `Có ${activeContentCount} nội dung mới để chị đăng hôm nay.`, href: "/dashboard/kho-noi-dung", cta: "Xem kho nội dung" }] : []),
     { title: "Tiến độ cấp bậc", body: nextThreshold ? `Còn ${nextThreshold - monthlyValidOrders} đơn nữa để lên mốc hoa hồng tiếp theo.` : "Chị đang ở mốc hoa hồng cao nhất tháng này.", href: "/dashboard/cap-bac", cta: "Xem cấp bậc" },
     ...(nearestChallenge ? [{ title: "Thử thách gần hoàn thành", body: `Còn ${Math.max(nearestChallenge.progress.targetValue - nearestChallenge.progress.currentValue, 0)} đơn/doanh thu hợp lệ nữa để hoàn thành thử thách ${nearestChallenge.challenge.title}.`, href: "/dashboard/thu-thach", cta: "Xem thử thách" }] : []),
+    ...(nextLesson ? [{ title: `Bài học tiếp theo: ${nextLesson.title}`, body: `${completedLessonCount}/${trainingLessons.length} bài đã hoàn thành.`, href: `/dashboard/dao-tao/${nextLesson.id}`, cta: "Học ngay" }] : []),
+    ...(referralRows.length === 0 ? [{ title: "Giới thiệu partner mới", body: `Chia sẻ link ${partnerRecruitmentLink(partnerReferralCode)} để Merly biết ai do chị giới thiệu.`, href: "/dashboard/gioi-thieu-partner", cta: "Copy link giới thiệu" }] : []),
     { title: "Bảng xếp hạng", body: "Xem CTV đang dẫn đầu tuần này.", href: "/dashboard/bang-xep-hang", cta: "Xem bảng xếp hạng" },
     ...(pendingOrderRequests ? [{ title: "Yêu cầu gắn đơn", body: `Có ${pendingOrderRequests} yêu cầu gắn đơn đang chờ Merly xử lý.`, href: "/dashboard/yeu-cau-gan-don", cta: "Xem yêu cầu gắn đơn" }] : []),
   ].slice(0, 6);
@@ -96,8 +105,9 @@ export default async function Dashboard() {
           </p>
         </div>
         <div className="card">
-          <p>Đơn đã hủy/không tính hoa hồng</p>
-          <b>{orderSummary.cancelledOrBlockedOrders}</b>
+          <p>Đào tạo / giới thiệu</p>
+          <b>{completedLessonCount}/{trainingLessons.length}</b>
+          <p className="text-sm text-stone-500">{referralRows.length} partner giới thiệu · {pendingReferralRewards} thưởng chờ</p>
         </div>
       </div>
       <div className="card mt-6">
