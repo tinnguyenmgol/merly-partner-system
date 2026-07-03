@@ -50,6 +50,9 @@ export async function archiveAnnouncementAction(formData: FormData) {
 export async function markAnnouncementReadAction(formData: FormData) {
   const session = await requirePartnerSession();
   const announcementId = String(formData.get("announcementId") ?? "");
+  const now = new Date();
+  const announcement = await db.partnerAnnouncement.findFirst({ where: { id: announcementId, targetPartnerType: session.account.partner.partnerType.code, archivedAt: null, publishAt: { lte: now }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }, select: { id: true } });
+  if (!announcement) throw new Error("Announcement not found.");
   await db.partnerAnnouncementRead.upsert({ where: { announcementId_partnerId: { announcementId, partnerId: session.account.partner.id } }, create: { announcementId, partnerId: session.account.partner.id }, update: { readAt: new Date() } });
   revalidatePath("/dashboard/thong-bao"); revalidatePath("/dashboard");
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { db } from "@/lib/db";
+import { createAdminNotification } from "@/features/notifications";
 
 function optionalText(formData: FormData, key: string, maxLength: number) {
   const value = formData.get(key);
@@ -74,6 +75,10 @@ export async function updatePartnerProfileAction(formData: FormData) {
       contactName,
     },
   });
+
+  if (requestedBankUpdate) {
+    await createAdminNotification({ type: "partner.payment_info.updated", title: "CTV cập nhật thông tin thanh toán", actionUrl: `/admin/partners/${partnerId}`, entityType: "Partner", entityId: partnerId, severity: "warning" });
+  }
 
   revalidatePath("/dashboard/tai-khoan");
   redirect(`/dashboard/tai-khoan?message=${encodeURIComponent("Đã cập nhật thông tin tài khoản.")}`);

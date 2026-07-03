@@ -2,6 +2,7 @@ import { ATTRIBUTION_SOURCES, VALID_ATTRIBUTION_SOURCES } from "@/features/partn
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { recalculateOrderCommission } from "@/features/commissions";
 import { calculateEligibleProductRevenue } from "@/lib/money";
+import { createAdminNotification } from "@/features/notifications";
 import { HaravanClient } from "./haravan-client";
 import {
   extractHaravanAttributionCandidates,
@@ -377,6 +378,7 @@ export async function syncHaravanOrders(
         metadata: summary,
       },
     });
+    await createAdminNotification({ type: "haravan.sync.failed", title: "Haravan sync lỗi", message: "Vui lòng kiểm tra cấu hình hoặc log đồng bộ Haravan.", actionUrl: "/admin/settings/haravan", severity: "urgent" });
     return { ok: false, message, ...summary, logId: log.id };
   }
 }

@@ -6,6 +6,7 @@ import { recalculateOrderCommission } from "@/features/commissions";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { syncHaravanOrderByCode } from "@/features/haravan/order-sync";
 import { db } from "@/lib/db";
+import { createAdminNotification } from "@/features/notifications";
 
 export const ORDER_REQUEST_STATUS_LABELS: Record<PartnerOrderRequestStatus, string> = {
   pending: "Chờ kiểm tra",
@@ -30,7 +31,7 @@ function intValue(formData: FormData, key: string) {
 export async function createOrderRequest(formData: FormData) {
   "use server";
   const session = await requirePartnerSession();
-  await db.partnerOrderRequest.create({
+  const request = await db.partnerOrderRequest.create({
     data: {
       partnerId: session.account.partnerId,
       orderCode: text(formData, "orderCode"),
@@ -39,6 +40,7 @@ export async function createOrderRequest(formData: FormData) {
       note: text(formData, "note"),
     },
   });
+  await createAdminNotification({ type: "order_request.submitted", title: "Có yêu cầu gắn đơn mới", actionUrl: "/admin/order-requests", entityType: "PartnerOrderRequest", entityId: request.id, severity: "urgent" });
   revalidatePath("/dashboard/yeu-cau-gan-don");
   redirect("/dashboard/yeu-cau-gan-don?created=1");
 }

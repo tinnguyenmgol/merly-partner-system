@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { MerlyLogo } from "@/components/merly-logo";
 import { adminLogoutAction } from "@/features/auth/admin-actions";
+import { requirePartnerSession } from "@/features/auth/partner-auth";
+import { badgeLabel, getAdminUnreadNotificationCount, getPartnerUnreadAnnouncementCount } from "@/features/notifications";
 
 const partner = [
   ["/dashboard", "Tổng quan"],
@@ -22,6 +24,7 @@ const admin = [
   ["/admin/partners", "Quản lý đối tác"],
   ["/admin/orders", "Đơn hàng CTV"],
   ["/admin/announcements", "Thông báo & link"],
+  ["/admin/notifications", "Thông báo nội bộ"],
   ["/admin/order-requests", "Yêu cầu gắn đơn"],
   ["/admin/commissions", "Đối soát hoa hồng"],
   ["/admin/payouts", "Thanh toán"],
@@ -44,7 +47,16 @@ function AdminLogoutButton() {
   );
 }
 
-export function DashboardShell({
+function NotificationBell({ href, count, label }: { href: string; count: number; label: string }) {
+  return (
+    <Link aria-label={label} className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-rose-100 bg-white text-xl text-merly-700 shadow-sm hover:bg-merly-50" href={href}>
+      <span aria-hidden="true">🔔</span>
+      {count > 0 ? <span className="absolute -right-1 -top-1 min-w-6 rounded-full bg-merly-700 px-1.5 py-0.5 text-center text-xs font-bold text-white">{badgeLabel(count)}</span> : null}
+    </Link>
+  );
+}
+
+export async function DashboardShell({
   children,
   admin: am = false,
 }: {
@@ -52,10 +64,15 @@ export function DashboardShell({
   admin?: boolean;
 }) {
   const items = am ? admin : partner;
+  const notificationCount = am
+    ? await getAdminUnreadNotificationCount()
+    : await (async () => { const session = await requirePartnerSession(); return getPartnerUnreadAnnouncementCount(session.account.partner.id, session.account.partner.partnerType.code); })();
+  const bellHref = am ? "/admin/notifications" : "/dashboard/thong-bao";
+  const bellLabel = am ? "Thông báo nội bộ chưa đọc" : "Thông báo CTV chưa đọc";
   return (
     <div className="min-h-screen bg-rose-50/60 md:flex">
       <aside className="border-b border-rose-100 bg-white p-4 md:min-h-screen md:w-72 md:border-r">
-        <MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} />
+        <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} /></div>
         <nav className="mt-6 grid gap-1">
           {items.map(([href, label]) => (
             <Link
@@ -80,7 +97,7 @@ export function DashboardShell({
       </aside>
       <main className="flex-1 p-4 md:p-8">
         <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
-          <MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} />
+          <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} /></div>
         </div>
         {children}
       </main>

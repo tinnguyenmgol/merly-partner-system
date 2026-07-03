@@ -71,6 +71,18 @@ enum AdminUserStatus {
   disabled
 }
 
+enum AdminNotificationSeverity {
+  info
+  warning
+  urgent
+}
+
+enum AdminNotificationStatus {
+  unread
+  read
+  archived
+}
+
 model AdminUser {
   id           String          @id @default(cuid())
   email        String          @unique
@@ -485,6 +497,25 @@ model AdminAuditLog {
   createdAt  DateTime @default(now())
 
   partner Partner? @relation(fields: [partnerId], references: [id])
+}
+
+model AdminNotification {
+  id          String                    @id @default(cuid())
+  type        String
+  title       String
+  message     String?
+  severity    AdminNotificationSeverity @default(info)
+  status      AdminNotificationStatus   @default(unread)
+  entityType  String?
+  entityId    String?
+  actionUrl   String?
+  createdAt   DateTime                  @default(now())
+  readAt      DateTime?
+  archivedAt  DateTime?
+
+  @@index([status, createdAt])
+  @@index([severity, createdAt])
+  @@index([entityType, entityId])
 }
 
 model PartnerProgramSetting {

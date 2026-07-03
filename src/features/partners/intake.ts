@@ -8,6 +8,7 @@ import { db, hasDatabaseUrl } from "@/lib/db";
 import { sendTransactionalEmail } from "@/lib/mail";
 import { sendPartnerWelcomeSetupEmail } from "@/features/auth/partner-auth";
 import { getCtvProgramSettings } from "@/features/settings";
+import { createAdminNotification } from "@/features/notifications";
 import { Prisma, type PartnerStatus } from "@prisma/client";
 
 
@@ -309,6 +310,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
       },
     });
     createdPartnerId = createdPartner.id;
+    await createAdminNotification({ type: "partner.registration.submitted", title: "Có đăng ký CTV mới", actionUrl: "/admin/partners", entityType: "Partner", entityId: createdPartner.id, severity: "info" });
   } catch (error) {
     const duplicateState = prismaDuplicateRegistrationState(error, values);
 
