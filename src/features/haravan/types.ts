@@ -55,6 +55,12 @@ export type HaravanOrder = {
   landing_site_ref?: string | null;
   tags?: string | null;
   note?: string | null;
+  source_name?: string | null;
+  source?: string | null;
+  source_identifier?: string | null;
+  gateway?: string | null;
+  processing_method?: string | null;
+  browser_ip?: string | null;
 };
 
 export type HaravanSyncResult = {
@@ -64,4 +70,30 @@ export type HaravanSyncResult = {
   attributedOrders: number;
   skippedOrders: number;
   logId?: string;
+};
+
+
+export type HaravanProductVariant = {
+  id: string | number;
+  sku?: string | null;
+  title?: string | null;
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+  price?: HaravanMoney;
+  inventory_quantity?: number | string | null;
+};
+
+export type HaravanProduct = {
+  id: string | number;
+  handle?: string | null;
+  title?: string | null;
+  vendor?: string | null;
+  product_type?: string | null;
+  tags?: string | null;
+  status?: string | null;
+  published_at?: string | null;
+  image?: { src?: string | null } | null;
+  images?: Array<{ src?: string | null }>;
+  variants?: HaravanProductVariant[];
 };

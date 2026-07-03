@@ -721,6 +721,54 @@ model ShortLinkClick {
   @@index([partnerId, clickedAt])
 }
 
+model HaravanProduct {
+  id               String   @id @default(cuid())
+  haravanProductId String   @unique
+  handle           String?
+  title            String
+  vendor           String?
+  productType      String?
+  tags             String?
+  status           String?
+  publishedAt      DateTime?
+  imageUrl         String?
+  productUrl       String?
+  rawJson          Json?
+  syncedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  variants HaravanProductVariant[]
+
+  @@index([title])
+  @@index([handle])
+  @@index([status])
+  @@index([syncedAt])
+}
+
+model HaravanProductVariant {
+  id                String   @id @default(cuid())
+  haravanVariantId  String   @unique
+  productId         String
+  sku               String?
+  title             String?
+  option1           String?
+  option2           String?
+  option3           String?
+  price             Int?
+  inventoryQuantity Int?
+  rawJson           Json?
+  syncedAt          DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  product HaravanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([sku])
+  @@index([title])
+}
+
 model HaravanSyncLog {
   id         String    @id @default(cuid())
   syncType   String

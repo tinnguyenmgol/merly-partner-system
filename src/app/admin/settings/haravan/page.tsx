@@ -1,75 +1,25 @@
+import Link from "next/link";
 import { requireAdminSession } from "@/features/auth/admin-auth";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { runHaravanOrderSync } from "@/features/haravan/actions";
 import { HaravanClient } from "@/features/haravan/haravan-client";
+import { getHaravanOrderSyncSettings, getHaravanShopBaseUrl } from "@/features/haravan/settings";
 import { db, getDatabaseErrorMessage, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+const lines = (v: string[]) => v.join("\n");
 
 export default async function Haravan() {
   await requireAdminSession();
   const clientStatus = await new HaravanClient().healthCheck();
+  const settings = hasDatabaseUrl() ? await getHaravanOrderSyncSettings() : null;
+  const shopBaseUrl = hasDatabaseUrl() ? await getHaravanShopBaseUrl() : "https://merlyshoes.com";
   let logsWarning: string | null = null;
-  const latestLogs = [];
-
-  if (hasDatabaseUrl()) {
-    try {
-      latestLogs.push(
-        ...(await db.haravanSyncLog.findMany({
-          select: { id: true, syncType: true, status: true, message: true, startedAt: true, finishedAt: true },
-          orderBy: { startedAt: "desc" },
-          take: 20,
-        })),
-      );
-    } catch (error) {
-      console.error("Failed to load Haravan sync logs", error);
-      logsWarning = getDatabaseErrorMessage(error, "Không thể tải Haravan sync log. Vui lòng thử lại sau.");
-    }
-  }
-
-  const latestLog = latestLogs[0];
-
-  return (
-    <DashboardShell admin>
-      <div className="card">
-        <h1 className="text-3xl font-bold text-merly-900">Cài đặt Haravan</h1>
-        <p className="mt-3 text-stone-600">
-          Đồng bộ thủ công đơn hàng Haravan và gán đối tác referral_ctv bằng mã giảm giá. Webhook, commission engine và payout engine chưa được triển khai trong bước này.
-        </p>
-        {logsWarning ? <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{logsWarning}</p> : null}
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl bg-rose-50/60 p-4">
-            <p className="text-sm text-stone-500">API connection status</p>
-            <p className="mt-1 font-semibold text-merly-900">{clientStatus.ok ? "Đã cấu hình" : clientStatus.message}</p>
-          </div>
-          <div className="rounded-xl bg-rose-50/60 p-4">
-            <p className="text-sm text-stone-500">Last sync result</p>
-            <p className="mt-1 font-semibold text-merly-900">{latestLog ? `${latestLog.status}: ${latestLog.message ?? "Không có thông điệp"}` : "Chưa có sync"}</p>
-          </div>
-          <div className="rounded-xl bg-rose-50/60 p-4">
-            <p className="text-sm text-stone-500">Last sync time</p>
-            <p className="mt-1 font-semibold text-merly-900">{latestLog?.finishedAt?.toLocaleString("vi-VN") ?? latestLog?.startedAt.toLocaleString("vi-VN") ?? "—"}</p>
-          </div>
-          <form action={runHaravanOrderSync} className="rounded-xl border border-rose-100 p-4">
-            <p className="text-sm text-stone-500">Manual order sync</p>
-            <button className="btn-primary mt-3" type="submit" disabled={!clientStatus.ok || !hasDatabaseUrl()}>
-              Chạy sync đơn hàng
-            </button>
-          </form>
-        </div>
-      </div>
-      <div className="card mt-6">
-        <h2 className="text-xl font-bold text-merly-900">Sync logs</h2>
-        <div className="mt-4 grid gap-3">
-          {latestLogs.map((log) => (
-            <div className="rounded-xl border border-rose-100 p-4" key={log.id}>
-              <b>{log.syncType} · {log.status}</b>
-              <p className="text-sm text-stone-500">{log.startedAt.toLocaleString("vi-VN")} · {log.message ?? "Không có thông điệp"}</p>
-            </div>
-          ))}
-          {latestLogs.length === 0 && <p className="text-sm text-stone-500">Chưa có Haravan sync log.</p>}
-        </div>
-      </div>
-    </DashboardShell>
-  );
+  let latestLogs: Awaited<ReturnType<typeof db.haravanSyncLog.findMany>> = [];
+  if (hasDatabaseUrl()) try { latestLogs = await db.haravanSyncLog.findMany({ orderBy: { startedAt: "desc" }, take: 20 }); } catch (error) { logsWarning = getDatabaseErrorMessage(error, "Không thể tải Haravan sync log."); }
+  const latestOrderLog = latestLogs.find((l) => l.syncType === "orders");
+  const observed = (latestOrderLog?.metadata && typeof latestOrderLog.metadata === "object" && "observedSources" in latestOrderLog.metadata ? (latestOrderLog.metadata as { observedSources?: Record<string, number> }).observedSources : {}) ?? {};
+  return <DashboardShell admin><div className="card"><h1 className="text-3xl font-bold text-merly-900">Cài đặt Haravan</h1><p className="mt-3 text-stone-600">Cấu hình đồng bộ sản phẩm và phạm vi xử lý đơn hàng CTV. Product sync có thể lấy toàn bộ catalog; order sync chỉ nhập đơn theo phạm vi bên dưới.</p>{logsWarning ? <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{logsWarning}</p> : null}<div className="mt-6 grid gap-4 md:grid-cols-3"><div className="rounded-xl bg-rose-50/60 p-4"><p className="text-sm text-stone-500">API connection</p><p className="mt-1 font-semibold text-merly-900">{clientStatus.ok ? "Đã cấu hình" : clientStatus.message}</p></div><div className="rounded-xl bg-rose-50/60 p-4"><p className="text-sm text-stone-500">Order sync</p><p className="mt-1 font-semibold text-merly-900">{settings?.orderSyncEnabled ? "Đang bật" : "Đang tắt"}</p></div><div className="rounded-xl bg-rose-50/60 p-4"><p className="text-sm text-stone-500">Last order sync</p><p className="mt-1 font-semibold text-merly-900">{latestOrderLog ? `${latestOrderLog.status}: ${latestOrderLog.message ?? "—"}` : "Chưa có sync"}</p></div></div><div className="mt-5 flex flex-wrap gap-3"><form method="post" action="/admin/settings/haravan/sync-orders"><button className="btn-primary" disabled={!clientStatus.ok || !hasDatabaseUrl()}>Chạy sync đơn hàng</button></form><Link className="btn-secondary" href="/admin/haravan/products">Mở trang sản phẩm Haravan</Link></div></div>
+  <form method="post" action="/admin/settings/haravan/save" className="card mt-6 space-y-5"><h2 className="text-xl font-bold text-merly-900">Phạm vi đồng bộ đơn hàng</h2><label className="flex gap-2"><input type="checkbox" name="orderSyncEnabled" defaultChecked={settings?.orderSyncEnabled}/> Bật order sync</label><label className="block text-sm font-semibold">Shop base URL<input className="input mt-1 w-full" name="shopBaseUrl" defaultValue={shopBaseUrl}/></label><label className="block text-sm font-semibold">Lookback days<input className="input mt-1 w-full" type="number" name="orderSyncLookbackDays" defaultValue={settings?.orderSyncLookbackDays ?? 7}/></label><div className="grid gap-4 md:grid-cols-2"><label className="block text-sm font-semibold">Allowed sources<textarea className="input mt-1 min-h-28 w-full" name="allowedOrderSources" defaultValue={lines(settings?.allowedOrderSources ?? [])}/></label><label className="block text-sm font-semibold">Excluded sources<textarea className="input mt-1 min-h-28 w-full" name="excludedOrderSources" defaultValue={lines(settings?.excludedOrderSources ?? [])}/></label><label className="block text-sm font-semibold">Allowed financial statuses<textarea className="input mt-1 min-h-24 w-full" name="allowedFinancialStatuses" defaultValue={lines(settings?.allowedFinancialStatuses ?? [])}/></label><label className="block text-sm font-semibold">Allowed fulfillment statuses<textarea className="input mt-1 min-h-24 w-full" name="allowedFulfillmentStatuses" defaultValue={lines(settings?.allowedFulfillmentStatuses ?? [])}/></label></div><div className="grid gap-2"><label className="flex gap-2"><input type="checkbox" name="onlyOrdersWithPartnerSignals" defaultChecked={settings?.onlyOrdersWithPartnerSignals ?? true}/> Chỉ xử lý đơn có tín hiệu partner</label><label className="flex gap-2"><input type="checkbox" name="syncUnattributedOrders" defaultChecked={settings?.syncUnattributedOrders}/> Cho phép lưu đơn chưa attribution</label><label className="flex gap-2"><input type="checkbox" name="syncCancelledOrdersForReversal" defaultChecked={settings?.syncCancelledOrdersForReversal ?? true}/> Vẫn cập nhật đơn đã nhập khi hủy/hoàn để reversal</label></div><button className="btn-primary">Lưu cài đặt</button></form>
+  <div className="card mt-6"><h2 className="text-xl font-bold text-merly-900">Nguồn đơn quan sát gần đây</h2><div className="mt-3 flex flex-wrap gap-2">{Object.entries(observed).map(([k,v])=><span key={k} className="rounded-full bg-rose-50 px-3 py-1 text-sm">{k}: {v}</span>)}{Object.keys(observed).length===0?<p className="text-sm text-stone-500">Chưa có dữ liệu nguồn; chạy sync để ghi nhận source/channel từ payload.</p>:null}</div></div>
+  <div className="card mt-6"><h2 className="text-xl font-bold text-merly-900">Sync logs</h2><div className="mt-4 grid gap-3">{latestLogs.map((log)=><div className="rounded-xl border border-rose-100 p-4" key={log.id}><b>{log.syncType} · {log.status}</b><p className="text-sm text-stone-500">{log.startedAt.toLocaleString("vi-VN")} · {log.message ?? "Không có thông điệp"}</p></div>)}{latestLogs.length===0&&<p className="text-sm text-stone-500">Chưa có Haravan sync log.</p>}</div></div></DashboardShell>;
 }
