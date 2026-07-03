@@ -52,3 +52,8 @@ The application exposes two deployment health endpoints:
 - `GET /api/health/database` verifies `DATABASE_URL` is configured and the database accepts `SELECT 1` through Prisma.
 
 Use `/api/health` for basic container liveness checks and `/api/health/database` for readiness checks where database availability is required.
+
+## Server Action deployment mismatch handling
+Each production build writes a non-secret build version from `NEXT_PUBLIC_BUILD_VERSION`, `BUILD_VERSION`, supported git SHA environment variables, or package version. The app exposes only this safe stamp at `GET /api/build-version` so browser tabs can detect when a newer deployment is serving traffic.
+
+After every deploy, restart the Node.js application process so Server Action manifests and the build version are loaded from the same release. Ask operators and support staff to refresh open browser tabs after deployment; stale tabs will show a Vietnamese reload prompt before users continue submitting forms.
