@@ -6,6 +6,7 @@ import { recalculateOpenCommissions, isOrderCommissionEligible } from "@/feature
 import { syncHaravanOrders } from "@/features/haravan/order-sync";
 import { getCurrentPartnerSession } from "@/features/auth/partner-auth";
 import { db } from "@/lib/db";
+import { sendAdminAlertEmail, sendPartnerNotificationEmail } from "@/features/notification-email";
 
 export const DEFAULT_MINIMUM_PAYOUT_AMOUNT = 100_000;
 export const ACTIVE_PAYOUT_STATUSES: PayoutStatus[] = ["pending", "approved"];
@@ -81,6 +82,7 @@ export async function createPayoutRequestAction() {
     await tx.partnerPayout.create({
       data: { partnerId: partner.id, status: "pending", periodStart: ledgers[0]?.availableAt ?? now, periodEnd: now, amount, minimumPayoutAmount: DEFAULT_MINIMUM_PAYOUT_AMOUNT, requestedAt: now, items: { create: ledgers.map((l) => ({ ledgerId: l.id, amount: l.amount })) } },
     });
+    void sendAdminAlertEmail({ subject: "Merly Partner: Có yêu cầu thanh toán cần xử lý", lines: [`Partner: ${partner.displayName}`, `Số tiền yêu cầu: ${amount}`, `Số dư đủ điều kiện: ${amount}`, `Thông tin ngân hàng: ${hasBankInfo(partner.profile) ? "đã có" : "thiếu"}`], actionPath: "/admin/payouts" });
   });
   revalidatePath("/dashboard/thanh-toan");
 }
@@ -119,6 +121,7 @@ export async function approvePayoutAction(formData: FormData) {
     const invalid = payout.items.find((item) => item.ledger.status !== "payable" || (item.ledger.order && !isOrderCommissionEligible(item.ledger.order)));
     if (invalid) throw new Error("Có đơn đã hủy/hoàn/từ chối. Cần đối soát lại trước khi duyệt.");
     await tx.partnerPayout.update({ where: { id: payoutId }, data: { status: "approved", approvedAt: new Date() } });
+    void sendPartnerNotificationEmail({ partnerIds: [payout.partnerId], category: "payout", force: true, title: "Yêu cầu thanh toán đã được duyệt", summary: "Merly đã duyệt yêu cầu thanh toán của chị.", actionPath: "/dashboard/thanh-toan" });
     await tx.adminAuditLog.create({ data: { partnerId: payout.partnerId, action: "payout.approve", entityType: "PartnerPayout", entityId: payoutId, beforeJson: { status: payout.status }, afterJson: { status: "approved" } } });
   });
   revalidatePath("/admin/payouts");
@@ -144,6 +147,7 @@ export async function markPayoutPaidAction(formData: FormData) {
     if (!payout || payout.status !== "approved") throw new Error("Chỉ payout đã duyệt mới được đánh dấu đã thanh toán.");
     const now = new Date();
     await tx.partnerPayout.update({ where: { id: payoutId }, data: { status: "paid", paidAt: now } });
+    void sendPartnerNotificationEmail({ partnerIds: [payout.partnerId], category: "payout", force: true, title: "Merly đã thanh toán hoa hồng", summary: "Yêu cầu thanh toán của chị đã được đánh dấu đã thanh toán.", actionPath: "/dashboard/thanh-toan" });
     await tx.partnerCommissionLedger.updateMany({ where: { id: { in: payout.items.map((i) => i.ledgerId) }, status: "payable" }, data: { status: "paid", paidAt: now } });
     await tx.adminAuditLog.create({ data: { partnerId: payout.partnerId, action: "payout.mark_paid", entityType: "PartnerPayout", entityId: payoutId, beforeJson: { status: payout.status }, afterJson: { status: "paid" }, note: INVALID_ORDER_WARNING } });
   });

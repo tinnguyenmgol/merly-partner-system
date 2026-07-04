@@ -7,6 +7,7 @@ import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { syncHaravanOrderByCode } from "@/features/haravan/order-sync";
 import { db } from "@/lib/db";
 import { createAdminNotification } from "@/features/notifications";
+import { sendAdminAlertEmail } from "@/features/notification-email";
 
 export const ORDER_REQUEST_STATUS_LABELS: Record<PartnerOrderRequestStatus, string> = {
   pending: "Chờ kiểm tra",
@@ -40,7 +41,9 @@ export async function createOrderRequest(formData: FormData) {
       note: text(formData, "note"),
     },
   });
+  const partner = await db.partner.findUnique({ where: { id: session.account.partnerId }, select: { displayName: true } });
   await createAdminNotification({ type: "order_request.submitted", title: "Có yêu cầu gắn đơn mới", actionUrl: "/admin/order-requests", entityType: "PartnerOrderRequest", entityId: request.id, severity: "urgent" });
+  void sendAdminAlertEmail({ subject: "Merly Partner: Có yêu cầu gắn đơn mới", lines: [`Partner: ${partner?.displayName ?? session.account.partnerId}`, `Mã đơn: ${request.orderCode ?? "—"}`, `Gợi ý liên hệ: ${request.contactHint ?? "—"}`, `Số tiền dự kiến: ${request.expectedAmount ?? "—"}`, `Thời gian gửi: ${new Date().toISOString()}`], actionPath: "/admin/order-requests" });
   revalidatePath("/dashboard/yeu-cau-gan-don");
   redirect("/dashboard/yeu-cau-gan-don?created=1");
 }

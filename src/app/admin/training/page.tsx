@@ -65,6 +65,7 @@ export default async function Page() {
               <Field label="Thời điểm xuất bản"><input name="publishAt" type="datetime-local" className="input h-12 w-full" /></Field>
             </div>
             <label className="flex items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 p-4 text-sm font-semibold text-stone-700"><input type="checkbox" name="announce" className="h-4 w-4 accent-merly-700" /> Tạo thông báo CTV khi xuất bản</label>
+            <label className="flex items-center gap-3 rounded-2xl border border-rose-100 bg-white p-4 text-sm font-semibold text-stone-700"><input type="checkbox" name="sendEmailToPartners" className="h-4 w-4 accent-merly-700" /> Gửi email cho CTV/đối tác</label>
             <button className="btn-primary w-full justify-center md:w-auto">Lưu bài học</button>
           </section>
         </form>

@@ -9,6 +9,7 @@ import { sendTransactionalEmail } from "@/lib/mail";
 import { sendPartnerWelcomeSetupEmail } from "@/features/auth/partner-auth";
 import { getCtvProgramSettings } from "@/features/settings";
 import { createAdminNotification } from "@/features/notifications";
+import { sendAdminAlertEmail } from "@/features/notification-email";
 import { Prisma, type PartnerStatus } from "@prisma/client";
 
 
@@ -315,8 +316,10 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
     if (referrerCode && referrerCode.partnerId !== createdPartner.id) {
       await db.partnerReferral.create({ data: { referrerPartnerId: referrerCode.partnerId, referredPartnerId: createdPartner.id, referredEmail: email, referredPhone: phone, status: "registered" } });
       await createAdminNotification({ type: "partner.referral.registered", title: "Có partner được giới thiệu mới", message: `${createdPartner.displayName} đăng ký qua link giới thiệu partner.`, actionUrl: "/admin/partner-referrals", entityType: "PartnerReferral", entityId: createdPartner.id, severity: "info" });
+      void sendAdminAlertEmail({ subject: "Merly Partner: Có partner được giới thiệu mới", lines: [`Người giới thiệu: ${referrerCode.partner.displayName}`, `Partner mới: ${createdPartner.displayName}`, `Liên hệ: ${email ?? phone ?? "—"}`], actionPath: "/admin/partner-referrals" });
     }
     await createAdminNotification({ type: "partner.registration.submitted", title: "Có đăng ký CTV mới", actionUrl: "/admin/partners", entityType: "Partner", entityId: createdPartner.id, severity: "info" });
+    void sendAdminAlertEmail({ subject: "Merly Partner: Có đăng ký đối tác mới", lines: [`Tên partner: ${createdPartner.displayName}`, `Loại partner: ${partnerType.code}`, `Điện thoại/email: ${phone}${email ? ` / ${email}` : ""}`, `Thời gian gửi: ${new Date().toISOString()}`], actionPath: "/admin/partners" });
   } catch (error) {
     const duplicateState = prismaDuplicateRegistrationState(error, values);
 

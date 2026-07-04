@@ -3,6 +3,7 @@ import { db, hasDatabaseUrl } from "@/lib/db";
 import { recalculateOrderCommission } from "@/features/commissions";
 import { calculateEligibleProductRevenue } from "@/lib/money";
 import { createAdminNotification } from "@/features/notifications";
+import { sendAdminAlertEmail } from "@/features/notification-email";
 import { HaravanClient } from "./haravan-client";
 import { getHaravanOrderSyncSettings, normalizeSourceValue, type HaravanOrderSyncSettings } from "./settings";
 import {
@@ -434,6 +435,7 @@ export async function syncHaravanOrders(
       },
     });
     await createAdminNotification({ type: "haravan.sync.failed", title: "Haravan sync lỗi", message: "Vui lòng kiểm tra cấu hình hoặc log đồng bộ Haravan.", actionUrl: "/admin/settings/haravan", severity: "urgent" });
+    void sendAdminAlertEmail({ subject: "Merly Partner: Haravan sync lỗi", lines: ["Sync type: orders", `Lỗi: ${message.slice(0, 300)}`], actionPath: "/admin/settings/haravan" });
     return { ok: false, message, ...summary, logId: log.id };
   }
 }
