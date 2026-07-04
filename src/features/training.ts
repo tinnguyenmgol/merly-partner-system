@@ -31,7 +31,19 @@ export async function saveTrainingLessonAction(formData: FormData) {
   if (!data.title) throw new Error("Training lesson title is required.");
   const lesson = id ? await db.partnerTrainingLesson.update({ where: { id }, data }) : await db.partnerTrainingLesson.create({ data });
   if (formData.get("announce") === "on" && status === "published") {
-    await db.partnerAnnouncement.create({ data: { title: `Bài đào tạo mới: ${data.title}`, body: data.description || "Merly vừa xuất bản bài học mới trong Trung tâm đào tạo.", category: "training", priority: "normal", ctaLabel: "Xem bài học", ctaUrl: `/dashboard/dao-tao/${lesson.id}`, createdByAdminId: session.adminUserId } });
+    const targetPartnerTypes = ["referral_ctv", "agency", "mini_corner"] as const;
+    await db.partnerAnnouncement.createMany({
+      data: targetPartnerTypes.map((targetPartnerType) => ({
+        title: `Bài đào tạo mới: ${data.title}`,
+        body: data.description || "Merly vừa xuất bản bài học mới trong Trung tâm đào tạo.",
+        category: "training",
+        priority: "normal",
+        ctaLabel: "Xem bài học",
+        ctaUrl: `/dashboard/dao-tao/${lesson.id}`,
+        targetPartnerType,
+        createdByAdminId: session.adminUserId,
+      })),
+    });
   }
   revalidatePath("/admin/training"); revalidatePath("/dashboard"); revalidatePath("/dashboard/dao-tao");
   redirect("/admin/training");

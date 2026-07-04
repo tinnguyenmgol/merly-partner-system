@@ -5,7 +5,8 @@ import { MerlyLogo } from "@/components/merly-logo";
 import { adminLogoutAction } from "@/features/auth/admin-actions";
 import { displayBuildVersion } from "@/lib/build-version";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
-import { badgeLabel, getAdminUnreadNotificationCount, getPartnerUnreadAnnouncementCount } from "@/features/notifications";
+import { getAdminUnreadNotificationCount, getPartnerUnreadAnnouncementCount } from "@/features/notifications";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 const partnerGroups: NavGroup[] = [
   { label: "Tổng quan", items: [{ href: "/dashboard", label: "Tổng quan" }] },
@@ -34,15 +35,6 @@ function AdminLogoutButton() {
   );
 }
 
-function NotificationBell({ href, count, label }: { href: string; count: number; label: string }) {
-  return (
-    <Link aria-label={label} className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-rose-100 bg-white text-xl text-merly-700 shadow-sm hover:bg-merly-50" href={href}>
-      <span aria-hidden="true">🔔</span>
-      {count > 0 ? <span className="absolute -right-1 -top-1 min-w-6 rounded-full bg-merly-700 px-1.5 py-0.5 text-center text-xs font-bold text-white">{badgeLabel(count)}</span> : null}
-    </Link>
-  );
-}
-
 export async function DashboardShell({
   children,
   admin: am = false,
@@ -59,12 +51,12 @@ export async function DashboardShell({
   return (
     <div className="min-h-screen bg-rose-50/60 md:flex">
       <aside className="border-b border-rose-100 bg-white p-4 md:min-h-screen md:w-72 md:border-r">
-        <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} /></div>
+        <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} countUrl={am ? "/api/admin/notifications/count" : "/api/dashboard/notifications/count"} /></div>
         <SidebarNav groups={groups} footer={<div className="space-y-3">{am ? <AdminLogoutButton /> : <Link className="block rounded-xl px-3 py-2 text-sm font-semibold text-merly-700 hover:bg-merly-50" href="/dang-xuat">Đăng xuất</Link>}<p className="px-3 text-xs font-medium text-stone-400">Phiên bản {displayBuildVersion}</p></div>} />
       </aside>
       <main className="flex-1 p-4 md:p-8">
         <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} /></div>
+          <div className="flex items-center justify-between gap-3"><MerlyLogo variant={am ? "admin" : "dashboard"} withText={am} href={am ? "/admin" : "/dashboard"} /><NotificationBell href={bellHref} count={notificationCount} label={bellLabel} countUrl={am ? "/api/admin/notifications/count" : "/api/dashboard/notifications/count"} /></div>
         </div>
         {children}
       </main>
