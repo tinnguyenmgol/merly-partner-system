@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdminSession } from "@/features/auth/admin-auth";
 import { parseVietnamDatetimeLocal } from "@/features/partner-os";
+import { sendPartnerNotificationEmail } from "@/features/notification-email";
 
 function str(formData: FormData, key: string) { return String(formData.get(key) ?? "").trim(); }
 function optionalStr(formData: FormData, key: string) { return str(formData, key) || undefined; }
@@ -63,6 +64,7 @@ export async function createCampaignAction(formData: FormData) {
     createdByAdminId: session.adminUserId,
   } });
   await maybeCreateAnnouncement(formData, "Có chương trình mới từ Merly", campaign.title, "Xem lịch chương trình", "/dashboard/lich-chuong-trinh", session.adminUserId);
+  if (formData.get("sendEmailToPartners") === "on" || campaign.priority === "high" || campaign.priority === "urgent") void sendPartnerNotificationEmail({ category: "campaign", force: formData.get("sendEmailToPartners") === "on", title: `Có chương trình mới từ Merly: ${campaign.title}`, summary: campaign.description || campaign.title, actionPath: "/dashboard/lich-chuong-trinh" });
   revalidatePath("/admin/campaigns"); revalidatePath("/dashboard/lich-chuong-trinh"); revalidatePath("/dashboard");
 }
 

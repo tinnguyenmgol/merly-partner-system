@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { db } from "@/lib/db";
 import { createAdminNotification } from "@/features/notifications";
+import { sendAdminAlertEmail } from "@/features/notification-email";
 
 function optionalText(formData: FormData, key: string, maxLength: number) {
   const value = formData.get(key);
@@ -78,6 +79,7 @@ export async function updatePartnerProfileAction(formData: FormData) {
 
   if (requestedBankUpdate) {
     await createAdminNotification({ type: "partner.payment_info.updated", title: "CTV cập nhật thông tin thanh toán", actionUrl: `/admin/partners/${partnerId}`, entityType: "Partner", entityId: partnerId, severity: "warning" });
+    void sendAdminAlertEmail({ subject: "Merly Partner: CTV cập nhật thông tin thanh toán", lines: [`Partner: ${session.account.partner.displayName}`, `Thời gian cập nhật: ${new Date().toISOString()}`], actionPath: `/admin/partners/${partnerId}` });
   }
 
   revalidatePath("/dashboard/tai-khoan");

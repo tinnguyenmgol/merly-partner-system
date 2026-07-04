@@ -20,7 +20,7 @@ const adminGroups: NavGroup[] = [
   { label: "Đối tác", items: [{ href: "/admin/partners", label: "Quản lý đối tác" }, { href: "/admin/order-requests", label: "Yêu cầu gắn đơn" }] },
   { label: "Đơn & đối soát", items: [{ href: "/admin/orders", label: "Đơn hàng CTV" }, { href: "/admin/commissions", label: "Đối soát hoa hồng" }, { href: "/admin/payouts", label: "Thanh toán" }] },
   { label: "Marketing & tăng trưởng", items: [{ href: "/admin/announcements", label: "Thông báo & link" }, { href: "/admin/content-library", label: "Kho nội dung" }, { href: "/admin/campaigns", label: "Lịch chương trình" }, { href: "/admin/leaderboards", label: "Bảng xếp hạng" }, { href: "/admin/challenges", label: "Thử thách" }, { href: "/admin/training", label: "Đào tạo" }, { href: "/admin/partner-referrals", label: "Giới thiệu partner" }] },
-  { label: "Cài đặt & hệ thống", items: [{ href: "/admin/settings/ctv", label: "Cài đặt CTV" }, { href: "/admin/settings/commission-rules", label: "Cài đặt chính sách" }, { href: "/admin/settings/partner-levels", label: "Cấp bậc" }, { href: "/admin/settings/haravan", label: "Haravan" }, { href: "/admin/logs", label: "Audit logs" }] },
+  { label: "Cài đặt & hệ thống", items: [{ href: "/admin/settings/ctv", label: "Cài đặt CTV" }, { href: "/admin/settings/commission-rules", label: "Cài đặt chính sách" }, { href: "/admin/settings/partner-levels", label: "Cấp bậc" }, { href: "/admin/settings/haravan", label: "Haravan" }, { href: "/admin/settings/notifications", label: "Email thông báo" }, { href: "/admin/settings/analytics", label: "Google Analytics" }, { href: "/admin/logs", label: "Audit logs" }] },
 ];
 function AdminLogoutButton() {
   return (

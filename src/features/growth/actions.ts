@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireAdminSession } from "@/features/auth/admin-auth";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
+import { sendPartnerNotificationEmail } from "@/features/notification-email";
 
 import { ensureTrustedMerlyUrl } from "@/features/growth/utils";
 
@@ -26,7 +27,7 @@ export async function createAnnouncementAction(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   if (!title || !body) throw new Error("Title and body are required.");
-  await db.partnerAnnouncement.create({ data: {
+  const announcement = await db.partnerAnnouncement.create({ data: {
     title, body,
     category: String(formData.get("category") || "general"),
     priority: String(formData.get("priority") || "normal"),
@@ -37,6 +38,9 @@ export async function createAnnouncementAction(formData: FormData) {
     pinned: formData.get("pinned") === "on",
     createdByAdminId: session.adminUserId,
   }});
+  const priority = String(formData.get("priority") || "normal");
+  const emailSelected = formData.get("sendEmailToPartners") === "on";
+  if (emailSelected || priority === "high" || priority === "urgent") void sendPartnerNotificationEmail({ category: "announcement", force: emailSelected, targetPartnerType: announcement.targetPartnerType, title, summary: body.slice(0, 300), actionPath: announcement.ctaUrl || "/dashboard/thong-bao" });
   revalidatePath("/admin/announcements"); revalidatePath("/dashboard"); revalidatePath("/dashboard/thong-bao");
 }
 

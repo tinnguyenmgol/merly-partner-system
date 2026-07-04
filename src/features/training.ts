@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/features/auth/admin-auth";
 import { requirePartnerSession } from "@/features/auth/partner-auth";
 import { createAdminNotification } from "@/features/notifications";
+import { sendPartnerNotificationEmail } from "@/features/notification-email";
 import { db } from "@/lib/db";
 
 function text(formData: FormData, key: string) { const value = formData.get(key); return typeof value === "string" ? value.trim() : ""; }
@@ -30,6 +31,9 @@ export async function saveTrainingLessonAction(formData: FormData) {
   };
   if (!data.title) throw new Error("Training lesson title is required.");
   const lesson = id ? await db.partnerTrainingLesson.update({ where: { id }, data }) : await db.partnerTrainingLesson.create({ data });
+  if ((formData.get("sendEmailToPartners") === "on" || formData.get("announce") === "on") && status === "published") {
+    if (formData.get("sendEmailToPartners") === "on") void sendPartnerNotificationEmail({ category: "training", force: true, title: `Bài đào tạo mới: ${data.title}`, summary: data.description || "Merly vừa xuất bản bài học mới.", actionPath: `/dashboard/dao-tao/${lesson.id}` });
+  }
   if (formData.get("announce") === "on" && status === "published") {
     const targetPartnerTypes = ["referral_ctv", "agency", "mini_corner"] as const;
     await db.partnerAnnouncement.createMany({
