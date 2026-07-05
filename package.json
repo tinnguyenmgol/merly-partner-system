@@ -18,7 +18,8 @@
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate deploy",
     "db:bootstrap": "prisma db seed",
-    "admin:bootstrap": "tsx scripts/admin-bootstrap.ts"
+    "admin:bootstrap": "tsx scripts/admin-bootstrap.ts",
+    "check:url-safety": "node scripts/check-public-url-safety.mjs"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",

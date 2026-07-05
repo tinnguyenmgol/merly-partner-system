@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 const DEFAULT_PUBLIC_APP_BASE_URL = "https://partner.merlyshoes.com";
 
 export function getPublicAppBaseUrl() {
@@ -6,7 +8,10 @@ export function getPublicAppBaseUrl() {
 }
 
 export function appUrl(path: string) {
-  const base = getPublicAppBaseUrl();
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return new URL(cleanPath, base);
+  return new URL(cleanPath, getPublicAppBaseUrl());
+}
+
+export function redirectToAppPath(path: string) {
+  return NextResponse.redirect(appUrl(path));
 }

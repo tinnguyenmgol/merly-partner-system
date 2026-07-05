@@ -1,6 +1,7 @@
 import { requireAdminSession } from "@/features/auth/admin-auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { appUrl } from "@/lib/public-url";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { createPartnerStatementTokenAction } from "@/features/commissions/actions";
 import {
@@ -106,11 +107,10 @@ export default async function Page({
 
   if (!partner) notFound();
   const summary = summarizeLedgers(partner.ledgerEntries);
-  const appBaseUrl = (process.env.APP_BASE_URL ?? "").replace(/\/$/, "");
-  const resetUrl = resetToken ? `${appBaseUrl}/dat-lai-mat-khau?token=${resetToken}` : null;
+  const resetUrl = resetToken ? appUrl(`/dat-lai-mat-khau?token=${resetToken}`).toString() : null;
   const setupUrl = setupLink ? decodeURIComponent(setupLink) : null;
   const publicStatementUrl = statementToken
-    ? `/partners/public-statement/${statementToken}`
+    ? appUrl(`/partners/public-statement/${statementToken}`).toString()
     : partner.statementTokens[0]
       ? "Đã có token đang hoạt động. Tạo token mới để copy link đầy đủ."
       : null;
