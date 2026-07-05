@@ -10,10 +10,11 @@ function redirectToReferrals(message: string) {
   return NextResponse.redirect(appUrl(`/admin/partner-referrals?message=${encodeURIComponent(message)}`));
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdminSession();
-    const formData = await request.formData();
+    const [{ id }, formData] = await Promise.all([params, request.formData()]);
+    formData.set("referralId", id);
     await updatePartnerReferralFromForm(formData, session.adminUserId);
     return redirectToReferrals(SUCCESS_MESSAGE);
   } catch (error) {
