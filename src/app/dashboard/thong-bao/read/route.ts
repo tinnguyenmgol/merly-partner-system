@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
+import { appUrl } from "@/lib/public-url";
 import { markAnnouncementReadAction } from "@/features/growth/actions";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
   try {
     await markAnnouncementReadAction(formData);
-    return NextResponse.redirect(new URL("/dashboard/thong-bao", request.url));
+    return NextResponse.redirect(appUrl("/dashboard/thong-bao"));
   } catch (error) {
     if (typeof error === "object" && error !== null && "digest" in error && String((error as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")) throw error;
     const message = encodeURIComponent(error instanceof Error ? error.message : "Không thể xử lý yêu cầu. Vui lòng thử lại.");
-    return NextResponse.redirect(new URL("/dashboard/thong-bao?message=" + message, request.url));
+    return NextResponse.redirect(appUrl("/dashboard/thong-bao?message=" + message));
   }
 }

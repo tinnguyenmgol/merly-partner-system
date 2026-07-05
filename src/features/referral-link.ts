@@ -1,2 +1,11 @@
-export function appBaseUrl() { return (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, ""); }
-export function partnerRecruitmentLink(code: string) { return `${appBaseUrl()}/dang-ky?partner_ref=${encodeURIComponent(code)}`; }
+import { appUrl, getPublicAppBaseUrl } from "@/lib/public-url";
+
+export function appBaseUrl() {
+  return getPublicAppBaseUrl();
+}
+
+export function partnerRecruitmentLink(code: string) {
+  const url = appUrl("/dang-ky");
+  url.searchParams.set("partner_ref", code);
+  return url.toString();
+}
