@@ -11,6 +11,7 @@ import { getCtvProgramSettings } from "@/features/settings";
 import { createAdminNotification } from "@/features/notifications";
 import { sendAdminAlertEmail } from "@/features/notification-email";
 import { Prisma, type PartnerStatus } from "@prisma/client";
+import { vietnamAdminUnits } from "@/data/vietnam-admin-units";
 
 
 const REFERRAL_PARTNER_TYPE = "referral_ctv" as const;
@@ -48,6 +49,10 @@ const registrationFields = [
   "storeAddress",
   "warehouseAddress",
   "cityProvince",
+  "provinceCode",
+  "provinceName",
+  "wardCode",
+  "wardName",
   "salesChannel",
   "socialLink",
   "customerSegment",
@@ -72,6 +77,13 @@ function readValues(formData: FormData) {
 
   for (const key of ["hasOfflineStore", "hasLivestream", "agreePolicy"]) {
     if (formData.get(key) === "on") values[key] = "on";
+  }
+
+  for (const raw of formData.getAll("salesChannelCodes")) {
+    if (typeof raw !== "string") continue;
+    values[`salesChannel_${raw}`] = "on";
+    values[`salesChannelUrl_${raw}`] = readString(formData, `salesChannelUrl_${raw}`);
+    values[`salesChannelNote_${raw}`] = readString(formData, `salesChannelNote_${raw}`);
   }
 
   return values;
@@ -177,8 +189,58 @@ function validateRegistration(values: Record<string, string>) {
   if (!values.phone) fieldErrors.phone = "Vui lòng nhập số điện thoại.";
   if (!values.agreePolicy) fieldErrors.agreePolicy = "Vui lòng đồng ý chính sách đối tác.";
   if (["shop_referral", "mini_corner", "agency"].includes(typeCode) && !values.storeAddress && !values.warehouseAddress) fieldErrors.storeAddress = "Vui lòng nhập địa chỉ cửa hàng/kho.";
+  if (!values.provinceCode) fieldErrors.provinceCode = "Vui lòng chọn Tỉnh/Thành phố.";
+  if (!values.taxCode || values.taxCode.trim().length < 5) fieldErrors.taxCode = "Vui lòng nhập Mã số thuế / CCCD đăng ký kinh doanh hợp lệ.";
 
   return fieldErrors;
+}
+
+type SalesChannelInput = { code: string; label: string; url?: string; note?: string };
+
+const allowedSalesChannelCodes = new Set(["facebook_personal", "facebook_page", "facebook_group", "tiktok_personal", "tiktok_shop", "shopee", "lazada", "website", "zalo", "offline_store", "livestream", "other"]);
+const textLimit = (value: string, max = 300) => value.trim().replace(/[<>]/g, "").slice(0, max);
+
+function safeUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function parseSalesChannels(formData: FormData) {
+  const errors: Partial<Record<string, string>> = {};
+  const channels: SalesChannelInput[] = [];
+  for (const code of formData.getAll("salesChannelCodes")) {
+    if (typeof code !== "string" || !allowedSalesChannelCodes.has(code)) continue;
+    const label = textLimit(readString(formData, `salesChannelLabel_${code}`), 80);
+    const urlValue = readString(formData, `salesChannelUrl_${code}`);
+    const note = textLimit(readString(formData, `salesChannelNote_${code}`));
+    const url = safeUrl(urlValue);
+    if (url === null) errors[`salesChannelUrl_${code}`] = "Link phải bắt đầu bằng http:// hoặc https:// và đúng định dạng URL.";
+    channels.push({ code, label: label || code, ...(url ? { url } : {}), ...(note ? { note } : {}) });
+  }
+  if (channels.length === 0) errors.salesChannels = "Vui lòng chọn ít nhất một kênh bán hàng/quảng bá.";
+  return { channels, errors };
+}
+
+function resolveProvinceWard(values: Record<string, string>) {
+  const province = vietnamAdminUnits.find((item) => item.code === values.provinceCode);
+  const ward = province?.wards.find((item) => item.code === values.wardCode);
+  return {
+    provinceCode: province?.code,
+    provinceName: province?.name ?? (textLimit(values.provinceName || "", 120) || undefined),
+    wardCode: ward?.code,
+    wardName: ward?.name ?? (textLimit(values.wardName || "", 120) || undefined),
+  };
+}
+
+function salesChannelSummary(channels: SalesChannelInput[]) {
+  return channels.map((channel) => [channel.label, channel.url || channel.note].filter(Boolean).join(": ")).join("; ").slice(0, 1000) || undefined;
 }
 
 async function createUniquePartnerCode(tx: Prisma.TransactionClient, partnerId: string, requestedCode: string) {
@@ -242,7 +304,9 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
     return { message: "Chương trình CTV Merly đang tạm ngưng nhận đăng ký mới. Vui lòng quay lại sau hoặc liên hệ Merly để được hỗ trợ.", values };
   }
 
-  const fieldErrors = validateRegistration(values);
+  const salesChannels = parseSalesChannels(formData);
+  const location = resolveProvinceWard(values);
+  const fieldErrors = { ...validateRegistration(values), ...salesChannels.errors };
   if (Object.keys(fieldErrors).length > 0) {
     return { message: "Vui lòng kiểm tra các thông tin bắt buộc.", fieldErrors, values };
   }
@@ -290,10 +354,15 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
             storeAddress: optionalString(formData, "storeAddress"),
             warehouseAddress: optionalString(formData, "warehouseAddress"),
             zalo: optionalString(formData, "zalo"),
-            area: optionalString(formData, "cityProvince"),
-            cityProvince: optionalString(formData, "cityProvince"),
-            sellingChannel: optionalString(formData, "salesChannel"),
-            salesChannel: optionalString(formData, "salesChannel"),
+            area: [location.wardName, location.provinceName].filter(Boolean).join(", ") || optionalString(formData, "cityProvince"),
+            cityProvince: [location.wardName, location.provinceName].filter(Boolean).join(", ") || optionalString(formData, "cityProvince"),
+            provinceCode: location.provinceCode,
+            provinceName: location.provinceName,
+            wardCode: location.wardCode,
+            wardName: location.wardName,
+            salesChannelsJson: salesChannels.channels as unknown as Prisma.InputJsonValue,
+            sellingChannel: salesChannelSummary(salesChannels.channels) ?? optionalString(formData, "salesChannel"),
+            salesChannel: salesChannelSummary(salesChannels.channels) ?? optionalString(formData, "salesChannel"),
             socialLink: optionalString(formData, "socialLink"),
             customerSegment: optionalString(formData, "customerSegment"),
             displayAreaNote: optionalString(formData, "displayAreaNote"),
@@ -301,7 +370,7 @@ export async function submitPartnerRegistration(_previousState: PartnerRegistrat
             businessModelNote: optionalString(formData, "businessModelNote"),
             expectedOpeningOrderAmount: optionalInt(formData, "expectedOpeningOrderAmount"),
             coverageArea: optionalString(formData, "coverageArea"),
-            taxCode: optionalString(formData, "taxCode"),
+            taxCode: textLimit(readString(formData, "taxCode"), 50),
             hasOfflineStore: formData.get("hasOfflineStore") === "on" ? true : undefined,
             hasLivestream: formData.get("hasLivestream") === "on" ? true : undefined,
             experienceNote: optionalString(formData, "note"),

@@ -15,7 +15,7 @@ type PartnerRow = Prisma.PartnerGetPayload<{
     status: true;
     createdAt: true;
     partnerType: { select: { code: true } };
-    profile: { select: { sellingChannel: true; salesChannel: true; shopName: true; storeAddress: true; customerSegment: true; displayAreaNote: true; expectedDisplayQuantity: true; businessName: true; expectedOpeningOrderAmount: true; coverageArea: true } };
+    profile: { select: { sellingChannel: true; salesChannel: true; salesChannelsJson: true; provinceName: true; wardName: true; taxCode: true; shopName: true; storeAddress: true; customerSegment: true; displayAreaNote: true; expectedDisplayQuantity: true; businessName: true; expectedOpeningOrderAmount: true; coverageArea: true } };
     codes: { select: { code: true } };
   };
 }>;
@@ -31,7 +31,7 @@ function quickInfo(partner: PartnerRow) {
   if (partner.partnerType.code === "shop_referral") return [profile?.shopName, partner.phone, profile?.storeAddress, profile?.customerSegment].filter(Boolean).join(" · ") || "—";
   if (partner.partnerType.code === "mini_corner") return [profile?.shopName, profile?.storeAddress, profile?.displayAreaNote, profile?.expectedDisplayQuantity ? `${profile.expectedDisplayQuantity} sp` : undefined].filter(Boolean).join(" · ") || "—";
   if (partner.partnerType.code === "agency") return [profile?.businessName, profile?.storeAddress, profile?.expectedOpeningOrderAmount ? `${profile.expectedOpeningOrderAmount.toLocaleString("vi-VN")}đ` : undefined, profile?.coverageArea].filter(Boolean).join(" · ") || "—";
-  return [partner.phone, profile?.salesChannel ?? profile?.sellingChannel].filter(Boolean).join(" · ") || "—";
+  return [partner.phone, [profile?.wardName, profile?.provinceName].filter(Boolean).join(", "), profile?.salesChannel ?? profile?.sellingChannel, profile?.taxCode ? `MST: ${profile.taxCode}` : undefined].filter(Boolean).join(" · ") || "—";
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
@@ -53,7 +53,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             status: true,
             createdAt: true,
             partnerType: { select: { code: true } },
-            profile: { select: { sellingChannel: true, salesChannel: true, shopName: true, storeAddress: true, customerSegment: true, displayAreaNote: true, expectedDisplayQuantity: true, businessName: true, expectedOpeningOrderAmount: true, coverageArea: true } },
+            profile: { select: { sellingChannel: true, salesChannel: true, salesChannelsJson: true, provinceName: true, wardName: true, taxCode: true, shopName: true, storeAddress: true, customerSegment: true, displayAreaNote: true, expectedDisplayQuantity: true, businessName: true, expectedOpeningOrderAmount: true, coverageArea: true } },
             codes: { select: { code: true } },
           },
           where: selectedType ? { partnerType: { code: selectedType } } : undefined,
