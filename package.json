@@ -19,7 +19,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:bootstrap": "prisma db seed",
     "admin:bootstrap": "tsx scripts/admin-bootstrap.ts",
-    "check:url-safety": "node scripts/check-public-url-safety.mjs"
+    "check:url-safety": "node scripts/check-public-url-safety.mjs",
+    "check:vietnam-admin-data": "tsx scripts/check-vietnam-admin-data.ts"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
