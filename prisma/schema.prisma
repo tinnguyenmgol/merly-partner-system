@@ -180,6 +180,11 @@ model PartnerProfile {
   warehouseAddress           String?
   cityProvince               String?
   salesChannel               String?
+  salesChannelsJson          Json?
+  provinceCode               String?
+  provinceName               String?
+  wardCode                   String?
+  wardName                   String?
   customerSegment            String?
   displayAreaNote            String?
   expectedDisplayQuantity    Int?

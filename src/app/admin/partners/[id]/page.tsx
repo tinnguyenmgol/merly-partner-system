@@ -16,6 +16,7 @@ import {
 import { createShopReferralCodeAction, normalizePartnerCodeAction, updatePartnerCodeAction } from "@/features/partners/codes";
 import { db, hasDatabaseUrl } from "@/lib/db";
 import { formatVnd } from "@/lib/money";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,16 @@ type PartnerDetailProfile = {
   salesChannel?: string | null;
   sellingChannel?: string | null;
   socialLink?: string | null;
+  salesChannelsJson?: Prisma.JsonValue | null;
+  provinceName?: string | null;
+  wardName?: string | null;
+  taxCode?: string | null;
 };
+
+type SalesChannel = { code?: string; label?: string; url?: string; note?: string };
+function salesChannels(value: Prisma.JsonValue | null | undefined): SalesChannel[] {
+  return Array.isArray(value) ? value.filter((item): item is SalesChannel => item !== null && typeof item === "object" && "label" in item) : [];
+}
 
 function typeSpecificDetails(partner: { partnerType: { code: string }; profile: PartnerDetailProfile | null; phone: string | null }) {
   const p = partner.profile;
@@ -136,7 +146,8 @@ export default async function Page({
               ["Số điện thoại", partner.phone ?? "—"],
               ["Email", partner.email ?? "—"],
               ["Zalo", partner.profile?.zalo ?? "—"],
-              ["Khu vực", partner.profile?.cityProvince ?? partner.profile?.area ?? "—"],
+              ["Khu vực", [partner.profile?.wardName, partner.profile?.provinceName].filter(Boolean).join(", ") || partner.profile?.cityProvince || partner.profile?.area || "—"],
+              ["MST", partner.profile?.taxCode ?? "—"],
               ["Kênh bán", partner.profile?.salesChannel ?? partner.profile?.sellingChannel ?? "—"],
               ["Link xã hội", partner.profile?.socialLink ?? "—"],
               [
@@ -152,6 +163,19 @@ export default async function Page({
               </div>
             ))}
           </dl>
+
+          <div className="mt-6 rounded-xl border border-rose-100 p-4">
+            <h2 className="text-xl font-bold text-merly-900">Kênh bán hàng đã chọn</h2>
+            <div className="mt-3 grid gap-2 text-sm">
+              {salesChannels(partner.profile?.salesChannelsJson).length ? salesChannels(partner.profile?.salesChannelsJson).map((channel) => (
+                <div className="rounded-xl bg-rose-50/60 p-3" key={channel.code ?? channel.label}>
+                  <b>{channel.label ?? channel.code}</b>
+                  {channel.url ? <a className="ml-2 text-merly-700 underline" href={channel.url} target="_blank" rel="noopener noreferrer">Mở link</a> : null}
+                  {channel.note ? <p className="mt-1 text-stone-600">{channel.note}</p> : null}
+                </div>
+              )) : <p className="text-stone-600">{partner.profile?.salesChannel ?? partner.profile?.sellingChannel ?? "—"}</p>}
+            </div>
+          </div>
 
           <div className="mt-6 rounded-xl border border-rose-100 p-4">
             <h2 className="text-xl font-bold text-merly-900">Thông tin trọng tâm theo loại đối tác</h2>
