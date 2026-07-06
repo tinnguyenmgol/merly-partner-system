@@ -190,6 +190,10 @@ function validateRegistration(values: Record<string, string>) {
   if (!values.agreePolicy) fieldErrors.agreePolicy = "Vui lòng đồng ý chính sách đối tác.";
   if (["shop_referral", "mini_corner", "agency"].includes(typeCode) && !values.storeAddress && !values.warehouseAddress) fieldErrors.storeAddress = "Vui lòng nhập địa chỉ cửa hàng/kho.";
   if (!values.provinceCode) fieldErrors.provinceCode = "Vui lòng chọn Tỉnh/Thành phố.";
+  const province = vietnamAdminUnits.find((item) => item.code === values.provinceCode);
+  if (values.provinceCode && !province) fieldErrors.provinceCode = "Tỉnh/Thành phố không hợp lệ. Vui lòng chọn lại.";
+  if (province?.wards.length && !values.wardCode) fieldErrors.wardCode = "Vui lòng chọn Xã/Phường/Đặc khu.";
+  if (province && values.wardCode && !province.wards.some((item) => item.code === values.wardCode)) fieldErrors.wardCode = "Xã/Phường/Đặc khu không thuộc tỉnh đã chọn. Vui lòng chọn lại.";
   if (!values.taxCode || values.taxCode.trim().length < 5) fieldErrors.taxCode = "Vui lòng nhập Mã số thuế / CCCD đăng ký kinh doanh hợp lệ.";
 
   return fieldErrors;
